@@ -159,6 +159,9 @@ function selectBot(id) {
 
   // Connection
   document.getElementById('liveAutoRejoin').checked    = bot.autoRejoin    ?? false;
+  document.getElementById('liveAutoRespawn').checked   = bot.autoRespawn   ?? false;
+  document.getElementById('liveDiscordWebhook').value  = bot.discordWebhook ?? '';
+  renderJoinCmds(bot.onJoinCommands || []);
   document.getElementById('liveAutoLeave').checked     = bot.autoLeave     ?? false;
   document.getElementById('liveOnJoinCommand').value   = bot.onJoinCommand ?? '';
 
@@ -254,6 +257,9 @@ async function saveLiveConfig(immediate = false) {
       lookInterval: parseInt(document.getElementById('liveLookInterval').value)  || 20,
     };
     const autoRejoin       = document.getElementById('liveAutoRejoin').checked;
+    const autoRespawn      = document.getElementById('liveAutoRespawn').checked;
+    const discordWebhook   = document.getElementById('liveDiscordWebhook').value.trim();
+    const onJoinCommands   = getJoinCmds();
     const autoLeave        = document.getElementById('liveAutoLeave').checked;
     const onJoinCommand    = document.getElementById('liveOnJoinCommand').value.trim();
     const cycleEnabled     = document.getElementById('liveCycleEnabled').checked;
@@ -262,7 +268,7 @@ async function saveLiveConfig(immediate = false) {
 
     const updated = await api('PUT', `/api/bots/${selectedBotId}`, {
       ...bot, antiAfk,
-      autoRejoin, autoLeave, onJoinCommand,
+      autoRejoin, autoLeave, onJoinCommand, onJoinCommands, autoRespawn, discordWebhook,
       cycleEnabled, cycleLeaveEvery, cycleRejoinAfter
     });
     if (updated) {
@@ -494,3 +500,89 @@ function logout() {
 window.addEventListener('beforeunload', () => {
   if (selectedBotId) sessionStorage.setItem('selectedBotId', selectedBotId);
 });
+
+// ─── Multi On-Join Commands ──────────────────────────────────────────────────
+
+function renderJoinCmds(cmds) {
+  const list = document.getElementById('joinCmdList');
+  if (!list) return;
+  list.innerHTML = cmds.map((c, i) => `
+    <div style="display:flex;gap:4px;align-items:center;">
+      <input type="text" value="${esc(c.command||'')}" placeholder="/command ${i+1}"
+        oninput="updateJoinCmd(${i},'command',this.value)"
+        style="flex:1;background:var(--surface3);border:1px solid var(--border);border-radius:2px;padding:5px 8px;font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text);outline:none;min-width:0;" />
+      <input type="number" value="${c.delay||1500}" min="500" max="30000"
+        oninput="updateJoinCmd(${i},'delay',this.value)"
+        style="width:56px;background:var(--surface3);border:1px solid var(--border);border-radius:2px;padding:5px 4px;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-dim);outline:none;text-align:center;"
+        title="Delay in ms" />
+      <button onclick="removeJoinCmd(${i})" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:13px;padding:2px 4px;" onmouseover="this.style.color='var(--error)'" onmouseout="this.style.color='var(--text-muted)'">✕</button>
+    </div>`).join('');
+}
+
+function getJoinCmds() {
+  const bot = bots.find(b => b.id === selectedBotId);
+  return bot?._joinCmds || [];
+}
+
+function updateJoinCmd(i, field, value) {
+  const bot = bots.find(b => b.id === selectedBotId);
+  if (!bot) return;
+  if (!bot._joinCmds) bot._joinCmds = [];
+  if (!bot._joinCmds[i]) bot._joinCmds[i] = { command: '', delay: 1500 };
+  if (field === 'delay') bot._joinCmds[i].delay = parseInt(value) || 1500;
+  else bot._joinCmds[i].command = value;
+}
+
+function addJoinCmd() {
+  const bot = bots.find(b => b.id === selectedBotId);
+  if (!bot) return;
+  if (!bot._joinCmds) bot._joinCmds = [...(bot.onJoinCommands || [])];
+  bot._joinCmds.push({ command: '', delay: 1500 });
+  renderJoinCmds(bot._joinCmds);
+}
+
+function removeJoinCmd(i) {
+  const bot = bots.find(b => b.id === selectedBotId);
+  if (!bot || !bot._joinCmds) return;
+  bot._joinCmds.splice(i, 1);
+  renderJoinCmds(bot._joinCmds);
+}
+
+// ─── Log Search / Filter ─────────────────────────────────────────────────────
+
+function filterLogs() {
+  const search = (document.getElementById('logSearch')?.value || '').toLowerCase();
+  const type   = document.getElementById('logTypeFilter')?.value || 'all';
+  document.querySelectorAll('#logOutput .log-entry').forEach(el => {
+    const msg  = el.querySelector('.log-msg')?.textContent.toLowerCase() || '';
+    const cls  = [...el.classList].find(c => c !== 'log-entry') || '';
+    const typeOk = type === 'all' || cls === type;
+    const textOk = !search || msg.includes(search);
+    el.style.display = (typeOk && textOk) ? '' : 'none';
+  });
+}
+
+// ─── Export Logs ──────────────────────────────────────────────────────────────
+
+function exportLogs() {
+  const bot = bots.find(b => b.id === selectedBotId);
+  if (!bot?.logs?.length) return;
+  const lines = bot.logs.map(e => {
+    const t = new Date(e.time).toLocaleString();
+    return `[${t}] [${e.type||'info'}] ${e.message}`;
+  }).join('\n');
+  const blob = new Blob([lines], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${bot.name.replace(/[^a-z0-9]/gi,'_')}_logs_${Date.now()}.txt`;
+  a.click();
+}
+
+// ─── Test Discord Webhook ────────────────────────────────────────────────────
+
+async function testWebhook() {
+  if (!selectedBotId) return;
+  const r = await api('POST', `/api/bots/${selectedBotId}/webhook-test`);
+  if (r?.success) alert('✅ Webhook test sent! Check your Discord channel.');
+  else alert('❌ Failed: ' + (r?.error || 'Unknown error — is the webhook URL saved?'));
+}

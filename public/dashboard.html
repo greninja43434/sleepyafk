@@ -239,6 +239,7 @@
   <div style="display:flex;gap:2px;margin-left:8px;">
     <button class="btn-sm" onclick="location.href='home.html'" style="letter-spacing:2px;">⌂ Home</button>
     <button class="btn-sm active-nav" style="border-color:var(--accent);color:var(--accent);letter-spacing:2px;">⚡ Bots</button>
+    <button class="btn-sm" onclick="location.href='servers.html'" style="letter-spacing:2px;">🖥 Servers</button>
   </div>
   <div class="topbar-sep" style="margin-left:12px;"></div>
   <div class="topbar-user">Logged in as <span id="topbarUser">—</span></div>
@@ -302,7 +303,19 @@
           <div class="tab-content active" id="tabConsole">
             <div class="log-header">
               <span>Live Output</span>
-              <button class="log-clear" onclick="clearLogs()">CLEAR</button>
+              <div style="display:flex;gap:6px;align-items:center;">
+                <input id="logSearch" type="text" placeholder="Search logs..." oninput="filterLogs()" style="background:var(--surface3);border:1px solid var(--border);border-radius:2px;padding:4px 8px;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text);outline:none;width:140px;" />
+                <select id="logTypeFilter" onchange="filterLogs()" style="background:var(--surface3);border:1px solid var(--border);color:var(--text);font-family:'Share Tech Mono',monospace;font-size:10px;padding:4px 6px;border-radius:2px;outline:none;">
+                  <option value="all">All</option>
+                  <option value="chat">Chat</option>
+                  <option value="error">Errors</option>
+                  <option value="warn">Warns</option>
+                  <option value="timed">Timed</option>
+                  <option value="afk">AFK</option>
+                </select>
+                <button class="log-clear" onclick="clearLogs()">CLEAR</button>
+                <button class="log-clear" onclick="exportLogs()" style="color:var(--accent2);">⬇ EXPORT</button>
+              </div>
             </div>
             <div class="log-output" id="logOutput"></div>
             <div class="chat-input-area">
@@ -352,6 +365,12 @@
                 <label>On-Join Command</label>
                 <input type="text" id="liveOnJoinCommand" placeholder="/lobby" maxlength="256" onchange="saveLiveConfig()" />
               </div>
+              <!-- Multi on-join commands -->
+              <div style="margin-top:4px;">
+                <label style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-muted);letter-spacing:1px;text-transform:uppercase;display:block;margin-bottom:6px;">On-Join Commands (multi)</label>
+                <div id="joinCmdList" style="display:flex;flex-direction:column;gap:4px;"></div>
+                <button onclick="addJoinCmd()" style="margin-top:6px;width:100%;padding:5px;background:transparent;border:1px dashed var(--border);border-radius:2px;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-muted);cursor:pointer;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-muted)'">+ Add Command</button>
+              </div>
               <p class="config-hint">Sent 1.5s after bot spawns — every join including cycle rejoins.</p>
             </div>
           </div>
@@ -378,6 +397,23 @@
                 </div>
               </div>
               <p class="config-hint">Bot will disconnect every X minutes, wait Y seconds, then reconnect and run the on-join command.</p>
+            </div>
+          </div>
+
+          <!-- Auto-Respawn + Discord -->
+          <div class="config-section">
+            <div class="config-section-header"><span>Extra Features</span></div>
+            <div class="config-body">
+              <div class="toggle-row">
+                <span class="toggle-label">Auto-Respawn on Death</span>
+                <label class="toggle"><input type="checkbox" id="liveAutoRespawn" onchange="saveLiveConfig()" /><span class="toggle-slider"></span></label>
+              </div>
+              <div class="config-field" style="margin-top:4px;">
+                <label>Discord Webhook URL</label>
+                <input type="text" id="liveDiscordWebhook" placeholder="https://discord.com/api/webhooks/..." onchange="saveLiveConfig()" />
+              </div>
+              <button onclick="testWebhook()" style="width:100%;padding:7px;background:transparent;border:1px solid #5865F2;border-radius:2px;font-family:'Share Tech Mono',monospace;font-size:10px;color:#5865F2;cursor:pointer;transition:all 0.2s;letter-spacing:1px;" onmouseover="this.style.background='#5865F2';this.style.color='var(--bg)'" onmouseout="this.style.background='transparent';this.style.color='#5865F2'">🔔 Test Webhook</button>
+              <p class="config-hint">Pings Discord on kick, disconnect, and reconnect.</p>
             </div>
           </div>
 

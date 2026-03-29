@@ -158,6 +158,7 @@
   <nav class="nav">
     <button class="nav-btn active" onclick="location.href='home.html'">⌂ Home</button>
     <button class="nav-btn" onclick="location.href='dashboard.html'">⚡ Bots</button>
+    <button class="nav-btn" onclick="location.href='servers.html'">🖥 Servers</button>
   </nav>
   <div class="topbar-right">
     <div class="time-display" id="clockDisplay">00:00:00</div>
@@ -313,12 +314,35 @@ const socket = io({auth:{token}});
 socket.on('bot:statusChange', ({botId, status}) => {
   const bot = bots.find(b=>b.id===botId);
   if (bot) {
+    const wasOnline  = bot.status === 'online';
     const wasOffline = bot.status !== 'online';
     bot.status = status;
-    renderBotGrid();
+    // Update just this card's visual without full re-render
+    const card = document.getElementById(`bcard_${botId}`);
+    if (card) {
+      card.className = `bot-card ${status}`;
+      const pill = card.querySelector('.status-pill');
+      if (pill) { pill.className=`status-pill ${status}`; pill.textContent=status.toUpperCase(); }
+      // Reset stats displays when going offline
+      if (status !== 'online') {
+        const h = card.querySelector('.bcard-health'); if(h) h.textContent='—';
+        const p = card.querySelector('.bcard-ping');   if(p) p.textContent='—';
+      }
+      // Swap start/stop button
+      const actions = card.querySelector('.bot-card-actions');
+      if (actions) {
+        const startBtn = actions.querySelector('.btn-card.start');
+        const stopBtn  = actions.querySelector('.btn-card.stop');
+        if (status === 'online') {
+          if (startBtn) startBtn.outerHTML = `<button class="btn-card stop" onclick="quickStop('${botId}')">■ Stop</button>`;
+        } else {
+          if (stopBtn) stopBtn.outerHTML = `<button class="btn-card start" onclick="quickStart('${botId}')">▶ Start</button>`;
+        }
+      }
+    }
     updateHeroStats();
     if (status==='online' && wasOffline) toast(`✅ ${bot.name} is online`, 'success');
-    if (status==='offline' && !wasOffline) toast(`🔴 ${bot.name} went offline`, 'warn');
+    if (status==='offline' && wasOnline) toast(`🔴 ${bot.name} went offline`, 'warn');
     if (status==='error') toast(`❌ ${bot.name} error`, 'error');
   }
 });
