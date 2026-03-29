@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>SleepyAfk — Home</title>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@700;900&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg:#050b0e; --surface:#0c1a1f; --surface2:#0f2028; --surface3:#122430;
+      --border:#1a3a44; --border2:#0f2830;
+      --accent:#00e5ff; --accent2:#00ff88; --accent3:#ff6b35;
+      --text:#c8e6ef; --text-dim:#4a7a8a; --text-muted:#2a5060;
+      --error:#ff4757; --warn:#ffa502; --success:#00ff88;
+      --purple:#c77dff; --cycle:#ffb347;
+    }
+    *{margin:0;padding:0;box-sizing:border-box;}
+    html,body{height:100%;overflow:hidden;}
+    body{background:var(--bg);font-family:'Rajdhani',sans-serif;color:var(--text);display:flex;flex-direction:column;}
+    body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,229,255,0.02) 1px,transparent 1px),linear-gradient(90deg,rgba(0,229,255,0.02) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0;}
+    ::-webkit-scrollbar{width:4px;height:4px;}
+    ::-webkit-scrollbar-track{background:transparent;}
+    ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+
+    /* ── Topbar ── */
+    .topbar{position:relative;z-index:10;height:52px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:0;flex-shrink:0;}
+    .topbar::after{content:'';position:absolute;bottom:-1px;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--accent),transparent);opacity:0.4;}
+    .brand{font-family:'Orbitron',monospace;font-size:15px;font-weight:900;letter-spacing:3px;color:var(--accent);text-shadow:0 0 15px rgba(0,229,255,0.4);}
+    .nav{display:flex;align-items:center;gap:2px;margin-left:24px;}
+    .nav-btn{padding:8px 16px;background:transparent;border:none;font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--text-dim);cursor:pointer;transition:all 0.2s;border-radius:2px;position:relative;}
+    .nav-btn:hover{color:var(--text);background:rgba(0,229,255,0.05);}
+    .nav-btn.active{color:var(--accent);}
+    .nav-btn.active::after{content:'';position:absolute;bottom:0;left:8px;right:8px;height:2px;background:var(--accent);box-shadow:0 0 8px var(--accent);}
+    .topbar-right{margin-left:auto;display:flex;align-items:center;gap:12px;}
+    .topbar-user{font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-dim);}
+    .topbar-user span{color:var(--accent2);}
+    .time-display{font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-muted);letter-spacing:1px;}
+    .btn-sm{padding:6px 14px;background:transparent;border:1px solid var(--border);border-radius:3px;font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-dim);cursor:pointer;transition:all 0.2s;}
+    .btn-sm:hover{border-color:var(--accent);color:var(--accent);}
+    .btn-sm.danger:hover{border-color:var(--error);color:var(--error);}
+
+    /* ── Main scrollable body ── */
+    .main{position:relative;z-index:1;flex:1;overflow-y:auto;overflow-x:hidden;padding:20px 24px;display:flex;flex-direction:column;gap:20px;}
+
+    /* ── Hero stats row ── */
+    .hero-row{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;flex-shrink:0;}
+    .hero-card{background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:16px 18px;position:relative;overflow:hidden;transition:border-color 0.2s;}
+    .hero-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--accent-color,var(--accent)),transparent);opacity:0.6;}
+    .hero-card:hover{border-color:var(--accent-color,var(--accent));}
+    .hero-card-icon{font-size:20px;margin-bottom:8px;}
+    .hero-card-val{font-family:'Orbitron',monospace;font-size:26px;font-weight:700;color:var(--accent-color,var(--accent));line-height:1;}
+    .hero-card-label{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-dim);letter-spacing:2px;text-transform:uppercase;margin-top:6px;}
+    .hero-card-sub{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-muted);margin-top:4px;}
+
+    /* ── Middle row ── */
+    .mid-row{display:grid;grid-template-columns:1fr 380px;gap:16px;min-height:0;}
+
+    /* ── Uptime Chart Panel ── */
+    .chart-panel{background:var(--surface);border:1px solid var(--border);border-radius:4px;display:flex;flex-direction:column;overflow:hidden;}
+    .panel-header{padding:12px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+    .panel-title{font-family:'Orbitron',monospace;font-size:11px;letter-spacing:2px;color:var(--text);text-transform:uppercase;}
+    .panel-sub{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-dim);}
+    .chart-controls{display:flex;gap:6px;align-items:center;}
+    .chart-tab{padding:4px 10px;background:transparent;border:1px solid var(--border);border-radius:2px;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-dim);cursor:pointer;transition:all 0.15s;letter-spacing:1px;}
+    .chart-tab.active{border-color:var(--accent);color:var(--accent);background:rgba(0,229,255,0.05);}
+    .chart-wrap{flex:1;padding:16px;min-height:0;position:relative;}
+    canvas#uptimeChart{width:100%!important;max-height:180px;}
+    .chart-legend{padding:0 18px 14px;display:flex;gap:16px;flex-wrap:wrap;}
+    .legend-item{display:flex;align-items:center;gap:6px;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-dim);}
+    .legend-dot{width:8px;height:8px;border-radius:50%;}
+
+    /* ── Activity Feed ── */
+    .activity-panel{background:var(--surface);border:1px solid var(--border);border-radius:4px;display:flex;flex-direction:column;overflow:hidden;}
+    .activity-list{flex:1;overflow-y:auto;padding:8px;}
+    .activity-item{display:flex;gap:10px;padding:7px 10px;border-radius:3px;transition:background 0.15s;align-items:flex-start;}
+    .activity-item:hover{background:var(--surface2);}
+    .activity-dot{width:6px;height:6px;border-radius:50%;margin-top:5px;flex-shrink:0;}
+    .activity-dot.info   {background:var(--text-dim);}
+    .activity-dot.success{background:var(--success);}
+    .activity-dot.error  {background:var(--error);}
+    .activity-dot.warn   {background:var(--warn);}
+    .activity-dot.chat   {background:var(--accent);}
+    .activity-dot.sent   {background:var(--accent2);}
+    .activity-dot.timed  {background:var(--purple);}
+    .activity-dot.afk    {background:var(--text-muted);}
+    .activity-text{flex:1;min-width:0;}
+    .activity-msg{font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text);word-break:break-word;line-height:1.4;}
+    .activity-meta{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-muted);margin-top:2px;}
+    .activity-empty{text-align:center;padding:32px 16px;font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-muted);line-height:2;}
+
+    /* ── Bot Grid ── */
+    .bots-section{flex-shrink:0;}
+    .section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+    .section-title{font-family:'Orbitron',monospace;font-size:12px;letter-spacing:3px;color:var(--text-dim);text-transform:uppercase;}
+    .btn-new-bot{padding:7px 16px;background:transparent;border:1px solid var(--accent);border-radius:3px;font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--accent);cursor:pointer;transition:all 0.2s;letter-spacing:1px;}
+    .btn-new-bot:hover{background:var(--accent);color:var(--bg);box-shadow:0 0 15px rgba(0,229,255,0.25);}
+    .bot-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;}
+    .bot-card{background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:16px;position:relative;overflow:hidden;transition:all 0.2s;cursor:pointer;}
+    .bot-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--card-color,var(--border));transition:background 0.3s;}
+    .bot-card.online::before{background:var(--success);box-shadow:0 0 12px rgba(0,255,136,0.4);}
+    .bot-card.offline::before{background:var(--border);}
+    .bot-card.connecting::before{background:var(--warn);animation:blink 1s ease-in-out infinite;}
+    .bot-card:hover{border-color:var(--accent);transform:translateY(-1px);box-shadow:0 4px 20px rgba(0,229,255,0.08);}
+    @keyframes blink{0%,100%{opacity:1}50%{opacity:0.4}}
+    .bot-card-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px;}
+    .bot-card-name{font-family:'Orbitron',monospace;font-size:12px;font-weight:700;color:var(--text);letter-spacing:1px;}
+    .bot-card-host{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-dim);margin-top:3px;}
+    .status-pill{padding:3px 8px;border-radius:10px;font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:1px;font-weight:600;}
+    .status-pill.online   {color:var(--success);background:rgba(0,255,136,0.1);border:1px solid rgba(0,255,136,0.25);}
+    .status-pill.offline  {color:var(--text-muted);background:rgba(42,80,96,0.2);border:1px solid var(--border2);}
+    .status-pill.connecting{color:var(--warn);background:rgba(255,165,2,0.1);border:1px solid rgba(255,165,2,0.25);animation:blink 1s ease-in-out infinite;}
+    .status-pill.error    {color:var(--error);background:rgba(255,71,87,0.1);border:1px solid rgba(255,71,87,0.25);}
+    .bot-card-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px;}
+    .bot-mini-stat{text-align:center;}
+    .bot-mini-val{font-family:'Orbitron',monospace;font-size:13px;color:var(--accent);font-weight:700;}
+    .bot-mini-label{font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--text-muted);letter-spacing:1px;text-transform:uppercase;margin-top:2px;}
+    .bot-card-actions{display:flex;gap:6px;}
+    .btn-card{flex:1;padding:7px 0;background:transparent;border:1px solid var(--border);border-radius:3px;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-dim);cursor:pointer;transition:all 0.2s;letter-spacing:1px;text-align:center;}
+    .btn-card.go       {border-color:var(--accent);color:var(--accent);}
+    .btn-card.go:hover {background:var(--accent);color:var(--bg);}
+    .btn-card.start    {border-color:var(--accent2);color:var(--accent2);}
+    .btn-card.start:hover{background:var(--accent2);color:var(--bg);}
+    .btn-card.stop     {border-color:var(--error);color:var(--error);}
+    .btn-card.stop:hover{background:var(--error);color:var(--bg);}
+    .uptime-bar{height:4px;border-radius:2px;background:var(--surface3);overflow:hidden;margin-bottom:10px;}
+    .uptime-bar-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--accent2),var(--accent));transition:width 0.5s;}
+    .bot-tags{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px;}
+    .bot-tag{padding:2px 7px;border-radius:10px;font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;}
+    .bot-tag.cycle  {color:var(--cycle);background:rgba(255,179,71,0.1);border:1px solid rgba(255,179,71,0.2);}
+    .bot-tag.rejoin {color:var(--accent2);background:rgba(0,255,136,0.05);border:1px solid rgba(0,255,136,0.15);}
+    .bot-tag.cmd    {color:var(--purple);background:rgba(199,125,255,0.05);border:1px solid rgba(199,125,255,0.15);}
+    .bot-tag.timed  {color:var(--accent);background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.15);}
+    .no-bots{text-align:center;padding:40px;font-family:'Share Tech Mono',monospace;color:var(--text-muted);font-size:12px;line-height:2;}
+
+    /* ── Quick Actions Tray ── */
+    .tray{background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:16px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex-shrink:0;}
+    .tray-label{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-muted);letter-spacing:2px;text-transform:uppercase;flex-shrink:0;}
+    .tray-sep{width:1px;height:24px;background:var(--border);flex-shrink:0;}
+    .tray-btn{padding:8px 18px;background:transparent;border:1px solid var(--border);border-radius:3px;font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-dim);cursor:pointer;transition:all 0.2s;letter-spacing:1px;white-space:nowrap;}
+    .tray-btn:hover{border-color:var(--accent);color:var(--accent);}
+    .tray-btn.red:hover   {border-color:var(--error);color:var(--error);}
+    .tray-btn.green:hover {border-color:var(--accent2);color:var(--accent2);}
+    .tray-spacer{flex:1;}
+
+    /* ── Toast notifications ── */
+    .toast-container{position:fixed;top:62px;right:16px;z-index:999;display:flex;flex-direction:column;gap:8px;pointer-events:none;}
+    .toast{background:var(--surface);border:1px solid var(--border);border-radius:3px;padding:10px 16px;font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text);display:flex;gap:10px;align-items:center;pointer-events:all;animation:toastIn 0.25s ease-out;max-width:320px;box-shadow:0 4px 20px rgba(0,0,0,0.4);}
+    .toast.success{border-color:rgba(0,255,136,0.3);color:var(--success);}
+    .toast.error  {border-color:rgba(255,71,87,0.3);color:var(--error);}
+    .toast.warn   {border-color:rgba(255,165,2,0.3);color:var(--warn);}
+    @keyframes toastIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">SleepyAfk</div>
+  <nav class="nav">
+    <button class="nav-btn active" onclick="location.href='home.html'">⌂ Home</button>
+    <button class="nav-btn" onclick="location.href='dashboard.html'">⚡ Bots</button>
+  </nav>
+  <div class="topbar-right">
+    <div class="time-display" id="clockDisplay">00:00:00</div>
+    <div class="topbar-user">Logged in as <span id="topbarUser">—</span></div>
+    <button class="btn-sm danger" onclick="logout()">Logout</button>
+  </div>
+</div>
+
+<div class="main" id="mainScroll">
+
+  <!-- Hero stat cards -->
+  <div class="hero-row" id="heroRow">
+    <div class="hero-card" style="--accent-color:var(--accent2)">
+      <div class="hero-card-icon">🟢</div>
+      <div class="hero-card-val" id="heroOnline">0</div>
+      <div class="hero-card-label">Bots Online</div>
+      <div class="hero-card-sub" id="heroTotal">of 0 total</div>
+    </div>
+    <div class="hero-card" style="--accent-color:var(--accent)">
+      <div class="hero-card-icon">⏱</div>
+      <div class="hero-card-val" id="heroUptime">0%</div>
+      <div class="hero-card-label">Avg Uptime</div>
+      <div class="hero-card-sub">last 24 hours</div>
+    </div>
+    <div class="hero-card" style="--accent-color:var(--purple)">
+      <div class="hero-card-icon">📢</div>
+      <div class="hero-card-val" id="heroMessages">0</div>
+      <div class="hero-card-label">Messages Sent</div>
+      <div class="hero-card-sub">all time</div>
+    </div>
+    <div class="hero-card" style="--accent-color:var(--warn)">
+      <div class="hero-card-icon">👢</div>
+      <div class="hero-card-val" id="heroKicks">0</div>
+      <div class="hero-card-label">Total Kicks</div>
+      <div class="hero-card-sub">all time</div>
+    </div>
+    <div class="hero-card" style="--accent-color:var(--cycle)">
+      <div class="hero-card-icon">🔄</div>
+      <div class="hero-card-val" id="heroReconnects">0</div>
+      <div class="hero-card-label">Reconnects</div>
+      <div class="hero-card-sub">all time</div>
+    </div>
+  </div>
+
+  <!-- Middle: chart + activity -->
+  <div class="mid-row">
+    <div class="chart-panel">
+      <div class="panel-header">
+        <div>
+          <div class="panel-title">Uptime Graph</div>
+          <div class="panel-sub" id="chartBotLabel">All Bots — 24h</div>
+        </div>
+        <div class="chart-controls">
+          <select id="chartBotSelect" onchange="redrawChart()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);font-family:'Share Tech Mono',monospace;font-size:10px;padding:4px 8px;border-radius:2px;outline:none;">
+            <option value="all">All Bots</option>
+          </select>
+        </div>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="uptimeChart"></canvas>
+      </div>
+      <div class="chart-legend">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--accent2)"></div>Online</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--error)"></div>Offline</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div>Online %</div>
+      </div>
+    </div>
+
+    <div class="activity-panel">
+      <div class="panel-header">
+        <div class="panel-title">Activity Feed</div>
+        <button class="chart-tab" onclick="clearActivity()">Clear</button>
+      </div>
+      <div class="activity-list" id="activityList">
+        <div class="activity-empty" id="activityEmpty">No activity yet.<br/>Start a bot to see live events.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick actions -->
+  <div class="tray">
+    <span class="tray-label">Quick Actions</span>
+    <div class="tray-sep"></div>
+    <button class="tray-btn green" onclick="startAllBots()">▶ Start All Bots</button>
+    <button class="tray-btn red"   onclick="stopAllBots()">■ Stop All Bots</button>
+    <div class="tray-sep"></div>
+    <button class="tray-btn" onclick="location.href='dashboard.html'">⚡ Open Bot Manager</button>
+    <button class="tray-btn" onclick="openAddBot()">＋ New Bot</button>
+    <button class="tray-btn" onclick="refreshAll()">⟳ Refresh</button>
+    <div class="tray-spacer"></div>
+    <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-muted)" id="lastRefresh">—</div>
+  </div>
+
+  <!-- Bot grid -->
+  <div class="bots-section">
+    <div class="section-header">
+      <span class="section-title">Your Bots</span>
+      <button class="btn-new-bot" onclick="openAddBot()">+ New Bot</button>
+    </div>
+    <div class="bot-grid" id="botGrid">
+      <div class="no-bots">Loading bots...</div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+const token    = localStorage.getItem('afk_token');
+const username = localStorage.getItem('afk_username');
+if (!token) location.href = '/';
+document.getElementById('topbarUser').textContent = username || '—';
+
+function logout() { localStorage.removeItem('afk_token'); localStorage.removeItem('afk_username'); location.href = '/'; }
+
+// ─── Clock ────────────────────────────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clockDisplay').textContent =
+    now.toLocaleTimeString('en-US',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+setInterval(updateClock, 1000); updateClock();
+
+// ─── API Helper ───────────────────────────────────────────────────────────────
+async function api(method, path, body) {
+  const res = await fetch(path,{method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:body?JSON.stringify(body):undefined});
+  if (res.status===401){logout();return null;}
+  return res.json();
+}
+
+// ─── Toast ────────────────────────────────────────────────────────────────────
+function toast(msg, type='info') {
+  const c = document.getElementById('toastContainer');
+  const t = document.createElement('div');
+  t.className = 'toast ' + type;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(()=>t.remove(), 3500);
+}
+
+// ─── State ────────────────────────────────────────────────────────────────────
+let bots = [];
+let stats = {};
+let activityItems = [];
+const MAX_ACTIVITY = 80;
+
+// ─── Socket ───────────────────────────────────────────────────────────────────
+const socket = io({auth:{token}});
+
+socket.on('bot:statusChange', ({botId, status}) => {
+  const bot = bots.find(b=>b.id===botId);
+  if (bot) {
+    const wasOffline = bot.status !== 'online';
+    bot.status = status;
+    renderBotGrid();
+    updateHeroStats();
+    if (status==='online' && wasOffline) toast(`✅ ${bot.name} is online`, 'success');
+    if (status==='offline' && !wasOffline) toast(`🔴 ${bot.name} went offline`, 'warn');
+    if (status==='error') toast(`❌ ${bot.name} error`, 'error');
+  }
+});
+
+socket.on('bot:stats', ({botId, health, food, ping}) => {
+  const el = document.getElementById(`bcard_${botId}`);
+  if (el) {
+    const h = el.querySelector('.bcard-health'); if(h) h.textContent = health+'❤';
+    const f = el.querySelector('.bcard-food');   if(f) f.textContent = food+'🍗';
+    const p = el.querySelector('.bcard-ping');   if(p) p.textContent = ping+'ms';
+  }
+});
+
+socket.on('home:activity', ({botId, entry}) => {
+  pushActivity(botId, entry);
+});
+
+// ─── Load Data ────────────────────────────────────────────────────────────────
+async function refreshAll() {
+  const [botsData, statsData] = await Promise.all([api('GET','/api/bots'), api('GET','/api/stats')]);
+  if (botsData) bots = botsData;
+  if (statsData) stats = statsData;
+  renderBotGrid();
+  updateHeroStats();
+  updateChartBotSelector();
+  redrawChart();
+  document.getElementById('lastRefresh').textContent = 'Refreshed at ' + new Date().toLocaleTimeString('en-US',{hour12:false});
+}
+
+// ─── Hero Stats ───────────────────────────────────────────────────────────────
+function updateHeroStats() {
+  const online = bots.filter(b=>b.status==='online').length;
+  document.getElementById('heroOnline').textContent = online;
+  document.getElementById('heroTotal').textContent  = `of ${bots.length} total`;
+
+  let totalPct=0, kicks=0, reconnects=0, messages=0, count=0;
+  bots.forEach(b => {
+    const st = stats[b.id];
+    if (!st) return;
+    count++;
+    const hist = st.uptimeHistory || [];
+    if (hist.length > 0) {
+      const onlineCount = hist.filter(p=>p.online).length;
+      totalPct += onlineCount / hist.length * 100;
+    }
+    kicks      += st.kicks      || 0;
+    reconnects += st.reconnects || 0;
+    messages   += st.messagesOut|| 0;
+  });
+  document.getElementById('heroUptime').textContent    = count ? Math.round(totalPct/count)+'%' : '—';
+  document.getElementById('heroKicks').textContent      = kicks;
+  document.getElementById('heroReconnects').textContent = reconnects;
+  document.getElementById('heroMessages').textContent   = messages;
+}
+
+// ─── Activity Feed ────────────────────────────────────────────────────────────
+function pushActivity(botId, entry) {
+  const bot = bots.find(b=>b.id===botId);
+  activityItems.unshift({botId, botName: bot?.name||'Unknown', entry});
+  if (activityItems.length > MAX_ACTIVITY) activityItems.pop();
+  renderActivity();
+}
+
+function renderActivity() {
+  const list = document.getElementById('activityList');
+  const empty = document.getElementById('activityEmpty');
+  if (!activityItems.length) { if(empty) empty.style.display=''; return; }
+  if (empty) empty.style.display='none';
+  // Only re-render top 40 for perf
+  const html = activityItems.slice(0,40).map(item => {
+    const t = new Date(item.entry.time);
+    const ts = t.toLocaleTimeString('en-US',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    const type = item.entry.type || 'info';
+    return `<div class="activity-item">
+      <div class="activity-dot ${type}"></div>
+      <div class="activity-text">
+        <div class="activity-msg">${escHtml(item.entry.message)}</div>
+        <div class="activity-meta">${escHtml(item.botName)} · ${ts}</div>
+      </div>
+    </div>`;
+  }).join('');
+  list.innerHTML = html;
+}
+
+function clearActivity() { activityItems=[]; renderActivity(); const e=document.getElementById('activityEmpty'); if(e){e.style.display='';e.textContent='Feed cleared.';} }
+
+// ─── Bot Grid ─────────────────────────────────────────────────────────────────
+function renderBotGrid() {
+  const grid = document.getElementById('botGrid');
+  if (!bots.length) { grid.innerHTML='<div class="no-bots">No bots yet.<br/>Click <strong style="color:var(--accent)">+ New Bot</strong> to create your first one.</div>'; return; }
+
+  grid.innerHTML = bots.map(bot => {
+    const st = stats[bot.id] || {};
+    const hist = st.uptimeHistory || [];
+    const pct  = hist.length ? Math.round(hist.filter(p=>p.online).length/hist.length*100) : 0;
+    const sessionSec = st.isOnline && st.sessionStart ? Math.floor((Date.now()-st.sessionStart)/1000) : 0;
+    const sessionStr = formatDuration(sessionSec);
+    const totalStr   = formatDuration(st.totalUptime||0);
+    const status = bot.status || 'offline';
+
+    const tags = [];
+    if (bot.cycleEnabled)    tags.push('<span class="bot-tag cycle">↻ cycle</span>');
+    if (bot.autoRejoin)      tags.push('<span class="bot-tag rejoin">⚡ rejoin</span>');
+    if (bot.onJoinCommand)   tags.push('<span class="bot-tag cmd">/cmd</span>');
+    const activeTimed = (bot.timedMessages||[]).filter(t=>t.enabled).length;
+    if (activeTimed)         tags.push(`<span class="bot-tag timed">⏱ ${activeTimed} msg</span>`);
+
+    const isOnline = status === 'online';
+
+    return `<div class="bot-card ${status}" id="bcard_${bot.id}" onclick="goToBot('${bot.id}')">
+      <div class="bot-card-top">
+        <div>
+          <div class="bot-card-name">${escHtml(bot.name)}</div>
+          <div class="bot-card-host">${escHtml(bot.host)}:${bot.port} · ${escHtml(bot.username)}</div>
+        </div>
+        <div class="status-pill ${status}">${status.toUpperCase()}</div>
+      </div>
+      ${tags.length ? `<div class="bot-tags">${tags.join('')}</div>` : ''}
+      <div class="uptime-bar"><div class="uptime-bar-fill" style="width:${pct}%"></div></div>
+      <div class="bot-card-stats">
+        <div class="bot-mini-stat">
+          <div class="bot-mini-val bcard-health">${isOnline ? '—❤' : '—'}</div>
+          <div class="bot-mini-label">Health</div>
+        </div>
+        <div class="bot-mini-stat">
+          <div class="bot-mini-val" style="color:var(--accent2)">${pct}%</div>
+          <div class="bot-mini-label">24h Uptime</div>
+        </div>
+        <div class="bot-mini-stat">
+          <div class="bot-mini-val bcard-ping" style="color:var(--cycle)">${isOnline ? '—ms' : '—'}</div>
+          <div class="bot-mini-label">Ping</div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:10px;">
+        <span style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-muted)">Session: <span style="color:var(--text-dim)">${isOnline ? sessionStr : '—'}</span></span>
+        <span style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-muted)">Total: <span style="color:var(--text-dim)">${totalStr}</span></span>
+      </div>
+      <div class="bot-card-actions" onclick="event.stopPropagation()">
+        <button class="btn-card go" onclick="goToBot('${bot.id}')">⚡ Manage</button>
+        ${isOnline
+          ? `<button class="btn-card stop" onclick="quickStop('${bot.id}')">■ Stop</button>`
+          : `<button class="btn-card start" onclick="quickStart('${bot.id}')">▶ Start</button>`
+        }
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ─── Quick Actions ────────────────────────────────────────────────────────────
+async function quickStart(id) {
+  const bot = bots.find(b=>b.id===id);
+  toast(`Connecting ${bot?.name||'bot'}...`);
+  await api('POST',`/api/bots/${id}/start`);
+}
+async function quickStop(id) {
+  const bot = bots.find(b=>b.id===id);
+  toast(`Stopping ${bot?.name||'bot'}...`);
+  await api('POST',`/api/bots/${id}/stop`);
+}
+async function startAllBots() {
+  const offline = bots.filter(b=>b.status!=='online');
+  if (!offline.length) { toast('All bots already online!','success'); return; }
+  toast(`Starting ${offline.length} bot(s)...`);
+  await Promise.all(offline.map(b=>api('POST',`/api/bots/${b.id}/start`)));
+}
+async function stopAllBots() {
+  const online = bots.filter(b=>b.status==='online');
+  if (!online.length) { toast('No bots are running.'); return; }
+  if (!confirm(`Stop all ${online.length} running bot(s)?`)) return;
+  toast(`Stopping ${online.length} bot(s)...`,'warn');
+  await Promise.all(online.map(b=>api('POST',`/api/bots/${b.id}/stop`)));
+}
+function goToBot(id) {
+  sessionStorage.setItem('selectedBotId', id);
+  location.href = 'dashboard.html';
+}
+function openAddBot() { location.href = 'dashboard.html'; }
+
+// ─── Chart ────────────────────────────────────────────────────────────────────
+let chartInstance = null;
+
+function updateChartBotSelector() {
+  const sel = document.getElementById('chartBotSelect');
+  const prev = sel.value;
+  sel.innerHTML = '<option value="all">All Bots</option>' +
+    bots.map(b=>`<option value="${b.id}">${escHtml(b.name)}</option>`).join('');
+  if (prev && [...sel.options].find(o=>o.value===prev)) sel.value=prev;
+}
+
+function redrawChart() {
+  const sel   = document.getElementById('chartBotSelect');
+  const botId = sel.value;
+  const label = document.getElementById('chartBotLabel');
+
+  // Build 24 hourly buckets
+  const now   = Date.now();
+  const buckets = Array.from({length:24}, (_,i) => ({
+    hour: i,
+    label: new Date(now - (23-i)*3600*1000).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false}),
+    on: 0, off: 0
+  }));
+
+  let sources = [];
+  if (botId === 'all') {
+    sources = bots.map(b => (stats[b.id]?.uptimeHistory || [])).flat();
+    label.textContent = 'All Bots — Last 24h';
+  } else {
+    sources = stats[botId]?.uptimeHistory || [];
+    const bot = bots.find(b=>b.id===botId);
+    label.textContent = (bot?.name||'Bot') + ' — Last 24h';
+  }
+
+  sources.forEach(p => {
+    const age = now - p.t;
+    if (age > 24*3600*1000) return;
+    const bucket = Math.floor((24*3600*1000 - age) / 3600000);
+    const b = buckets[Math.min(bucket, 23)];
+    if (p.online) b.on++; else b.off++;
+  });
+
+  const uptimePct = buckets.map(b => {
+    const total = b.on + b.off;
+    return total ? Math.round(b.on/total*100) : null;
+  });
+
+  const onlineData  = buckets.map(b=>b.on);
+  const offlineData = buckets.map(b=>b.off);
+  const labels      = buckets.map(b=>b.label);
+
+  const canvas = document.getElementById('uptimeChart');
+
+  if (chartInstance) { chartInstance.destroy(); chartInstance=null; }
+
+  // Draw using native canvas (no Chart.js dependency)
+  drawChart(canvas, labels, onlineData, offlineData, uptimePct);
+}
+
+function drawChart(canvas, labels, onlineData, offlineData, pctData) {
+  const dpr  = window.devicePixelRatio || 1;
+  const W    = canvas.parentElement.clientWidth;
+  const H    = 160;
+  canvas.style.width  = W + 'px';
+  canvas.style.height = H + 'px';
+  canvas.width  = W * dpr;
+  canvas.height = H * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  const PAD   = {top:10,right:12,bottom:28,left:28};
+  const cW    = W - PAD.left - PAD.right;
+  const cH    = H - PAD.top  - PAD.bottom;
+  const n     = labels.length;
+  const barW  = cW / n;
+
+  const maxVal = Math.max(1, ...onlineData.map((o,i)=>o+offlineData[i]));
+
+  // Background grid
+  ctx.strokeStyle = 'rgba(26,58,68,0.6)';
+  ctx.lineWidth   = 1;
+  [0,25,50,75,100].forEach(pct => {
+    const y = PAD.top + cH - (pct/100)*cH;
+    ctx.beginPath(); ctx.moveTo(PAD.left,y); ctx.lineTo(PAD.left+cW,y); ctx.stroke();
+    ctx.fillStyle = 'rgba(74,122,138,0.6)';
+    ctx.font = '9px Share Tech Mono,monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(pct+'%', PAD.left-4, y+3);
+  });
+
+  // Bars
+  onlineData.forEach((on,i) => {
+    const off  = offlineData[i];
+    const total= on+off;
+    const x    = PAD.left + i*barW + barW*0.1;
+    const bW   = barW * 0.8;
+
+    if (total > 0) {
+      const onH  = (on/maxVal)*cH;
+      const offH = (off/maxVal)*cH;
+      // Offline (red, bottom)
+      if (off>0) {
+        ctx.fillStyle = 'rgba(255,71,87,0.35)';
+        ctx.fillRect(x, PAD.top+cH-offH, bW, offH);
+      }
+      // Online (green, stacked)
+      if (on>0) {
+        ctx.fillStyle = 'rgba(0,255,136,0.5)';
+        ctx.fillRect(x, PAD.top+cH-offH-onH, bW, onH);
+      }
+    }
+
+    // X labels (every 4th)
+    if (i % 4 === 0) {
+      ctx.fillStyle = 'rgba(74,122,138,0.8)';
+      ctx.font = '9px Share Tech Mono,monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(labels[i], x+bW/2, H-PAD.bottom+12);
+    }
+  });
+
+  // Uptime % line
+  ctx.beginPath();
+  ctx.strokeStyle = 'rgba(0,229,255,0.8)';
+  ctx.lineWidth   = 2;
+  ctx.lineJoin    = 'round';
+  let started = false;
+  pctData.forEach((pct,i) => {
+    if (pct === null) return;
+    const x = PAD.left + i*barW + barW/2;
+    const y = PAD.top + cH - (pct/100)*cH;
+    if (!started) { ctx.moveTo(x,y); started=true; } else ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+
+  // Glow dots on line
+  pctData.forEach((pct,i) => {
+    if (pct===null) return;
+    const x = PAD.left + i*barW + barW/2;
+    const y = PAD.top + cH - (pct/100)*cH;
+    ctx.beginPath();
+    ctx.arc(x,y,2.5,0,Math.PI*2);
+    ctx.fillStyle = '#00e5ff';
+    ctx.fill();
+  });
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function escHtml(s) { if(!s)return''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function formatDuration(secs) {
+  if (!secs) return '0s';
+  const h = Math.floor(secs/3600);
+  const m = Math.floor((secs%3600)/60);
+  const s = secs%60;
+  if (h>0)  return `${h}h ${m}m`;
+  if (m>0)  return `${m}m ${s}s`;
+  return `${s}s`;
+}
+
+// ─── Auto-refresh every 30s ───────────────────────────────────────────────────
+setInterval(async ()=>{
+  const statsData = await api('GET','/api/stats');
+  if (statsData) { stats=statsData; updateHeroStats(); redrawChart(); }
+  // update session timers in bot cards
+  renderBotGrid();
+}, 30000);
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+window.addEventListener('resize', ()=>redrawChart());
+refreshAll();
+</script>
+</body>
+</html>

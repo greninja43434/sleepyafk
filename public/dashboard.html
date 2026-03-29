@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SleepyAfk — Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@700;900&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #050b0e; --surface: #0c1a1f; --surface2: #0f2028; --surface3: #122430;
+      --border: #1a3a44; --border2: #0f2830;
+      --accent: #00e5ff; --accent2: #00ff88; --accent3: #ff6b35;
+      --text: #c8e6ef; --text-dim: #4a7a8a; --text-muted: #2a5060;
+      --error: #ff4757; --warn: #ffa502; --success: #00ff88; --timed: #c77dff;
+      --cycle: #ffb347;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; }
+    body { background: var(--bg); font-family: 'Rajdhani', sans-serif; color: var(--text); display: flex; flex-direction: column; }
+    body::before {
+      content: ''; position: fixed; inset: 0;
+      background-image: linear-gradient(rgba(0,229,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(0,229,255,0.02) 1px, transparent 1px);
+      background-size: 40px 40px; pointer-events: none; z-index: 0;
+    }
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+    /* ── Topbar ── */
+    .topbar { position: relative; z-index: 10; height: 52px; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 20px; gap: 16px; flex-shrink: 0; }
+    .topbar::after { content: ''; position: absolute; bottom: -1px; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, var(--accent), transparent); opacity: 0.4; }
+    .brand { font-family: 'Orbitron', monospace; font-size: 14px; font-weight: 900; letter-spacing: 3px; color: var(--accent); text-shadow: 0 0 15px rgba(0,229,255,0.4); }
+    .topbar-sep { width: 1px; height: 24px; background: var(--border); }
+    .topbar-user { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--text-dim); }
+    .topbar-user span { color: var(--accent2); }
+    .topbar-actions { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+    .btn-sm { padding: 6px 14px; background: transparent; border: 1px solid var(--border); border-radius: 3px; font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--text-dim); cursor: pointer; transition: all 0.2s; letter-spacing: 1px; }
+    .btn-sm:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-sm.danger:hover { border-color: var(--error); color: var(--error); }
+
+    /* ── Layout ── */
+    .main { position: relative; z-index: 1; flex: 1; display: flex; overflow: hidden; min-height: 0; }
+
+    /* ── Sidebar ── */
+    .sidebar { width: 260px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+    .sidebar-header { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+    .sidebar-title { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--text-dim); letter-spacing: 2px; text-transform: uppercase; }
+    .btn-add { width: 26px; height: 26px; background: transparent; border: 1px solid var(--accent); border-radius: 3px; color: var(--accent); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; transition: all 0.2s; }
+    .btn-add:hover { background: var(--accent); color: var(--bg); box-shadow: 0 0 15px rgba(0,229,255,0.3); }
+    .bot-list { flex: 1; overflow-y: auto; padding: 8px; }
+    .bot-item { padding: 12px; border: 1px solid transparent; border-radius: 3px; cursor: pointer; transition: all 0.2s; margin-bottom: 4px; position: relative; }
+    .bot-item:hover { background: var(--surface2); border-color: var(--border); }
+    .bot-item.active { background: var(--surface2); border-color: var(--accent); }
+    .bot-item.active::before { content: ''; position: absolute; left: 0; top: 8px; bottom: 8px; width: 2px; background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+    .bot-item-name { font-weight: 600; font-size: 14px; color: var(--text); margin-bottom: 4px; }
+    .bot-item-host { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--text-dim); }
+    .bot-item-status { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+    .status-badge { font-family: 'Share Tech Mono', monospace; font-size: 10px; letter-spacing: 1px; padding: 2px 6px; border-radius: 2px; }
+    .status-badge.online     { color: var(--success); background: rgba(0,255,136,0.1); border: 1px solid rgba(0,255,136,0.2); }
+    .status-badge.offline    { color: var(--text-muted); background: rgba(42,80,96,0.2); border: 1px solid var(--border2); }
+    .status-badge.connecting { color: var(--warn); background: rgba(255,165,2,0.1); border: 1px solid rgba(255,165,2,0.2); animation: blink 1s ease-in-out infinite; }
+    .status-badge.error      { color: var(--error); background: rgba(255,71,87,0.1); border: 1px solid rgba(255,71,87,0.2); }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.5} }
+    .empty-state { padding: 32px 16px; text-align: center; }
+    .empty-state p { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--text-muted); line-height: 1.8; }
+
+    /* ── Content ── */
+    .content { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+    .welcome-screen { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; }
+    .welcome-screen svg { opacity: 0.15; filter: drop-shadow(0 0 20px var(--accent)); }
+    .welcome-screen h2 { font-family: 'Orbitron', monospace; font-size: 16px; color: var(--text-dim); letter-spacing: 4px; }
+    .welcome-screen p { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--text-muted); }
+
+    /* ── Bot Panel ── */
+    .bot-panel { flex: 1; display: none; flex-direction: column; overflow: hidden; min-height: 0; }
+    .bot-panel.active { display: flex; }
+    .bot-panel-header { padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+    .bot-panel-header h2 { font-family: 'Orbitron', monospace; font-size: 13px; letter-spacing: 2px; color: var(--text); }
+    .host-tag { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--text-dim); background: var(--surface2); padding: 3px 8px; border-radius: 2px; border: 1px solid var(--border); }
+    .header-actions { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+    .btn-control { padding: 7px 14px; border-radius: 3px; font-family: 'Share Tech Mono', monospace; font-size: 11px; letter-spacing: 1px; cursor: pointer; transition: all 0.2s; border: 1px solid; white-space: nowrap; }
+    .btn-control.start { border-color: var(--accent2); color: var(--accent2); background: transparent; }
+    .btn-control.start:hover { background: var(--accent2); color: var(--bg); box-shadow: 0 0 15px rgba(0,255,136,0.3); }
+    .btn-control.stop  { border-color: var(--error); color: var(--error); background: transparent; }
+    .btn-control.stop:hover  { background: var(--error); color: var(--bg); box-shadow: 0 0 15px rgba(255,71,87,0.3); }
+    .btn-control.edit  { border-color: var(--border); color: var(--text-dim); background: transparent; }
+    .btn-control.edit:hover  { border-color: var(--accent); color: var(--accent); }
+    .btn-control.del   { border-color: var(--border); color: var(--text-muted); background: transparent; }
+    .btn-control.del:hover   { border-color: var(--error); color: var(--error); }
+
+    /* Stats */
+    .stats-bar { display: flex; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    .stat { flex: 1; padding: 10px 16px; border-right: 1px solid var(--border); }
+    .stat:last-child { border-right: none; }
+    .stat-label { font-family: 'Share Tech Mono', monospace; font-size: 9px; color: var(--text-muted); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 2px; }
+    .stat-value { font-family: 'Orbitron', monospace; font-size: 15px; font-weight: 700; color: var(--accent); }
+    .stat-value.green  { color: var(--accent2); }
+    .stat-value.orange { color: var(--accent3); }
+
+    .panel-body { flex: 1; display: flex; overflow: hidden; min-height: 0; }
+
+    /* ── Left panel tabs ── */
+    .left-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; border-right: 1px solid var(--border); }
+    .panel-tabs { display: flex; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    .panel-tab { padding: 10px 18px; background: none; border: none; font-family: 'Share Tech Mono', monospace; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--text-dim); cursor: pointer; transition: all 0.2s; position: relative; }
+    .panel-tab.active { color: var(--accent); }
+    .panel-tab.active::after { content: ''; position: absolute; bottom: -1px; left: 0; right: 0; height: 2px; background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+    .panel-tab:hover:not(.active) { color: var(--text); background: rgba(0,229,255,0.03); }
+    .tab-content { flex: 1; display: none; flex-direction: column; overflow: hidden; }
+    .tab-content.active { display: flex; }
+
+    /* Log */
+    .log-header { padding: 10px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+    .log-header span { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--text-dim); letter-spacing: 2px; }
+    .log-clear { background: none; border: none; font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--text-muted); cursor: pointer; transition: color 0.2s; }
+    .log-clear:hover { color: var(--error); }
+    .log-output { flex: 1; overflow-y: auto; padding: 12px; font-family: 'Share Tech Mono', monospace; font-size: 12px; line-height: 1.8; display: flex; flex-direction: column; gap: 1px; }
+    .log-entry { display: flex; gap: 10px; align-items: baseline; padding: 2px 0; }
+    .log-time { color: var(--text-muted); font-size: 10px; flex-shrink: 0; }
+    .log-msg  { word-break: break-word; }
+    .log-entry.info    .log-msg { color: var(--text); }
+    .log-entry.chat    .log-msg { color: var(--accent); }
+    .log-entry.sent    .log-msg { color: var(--accent2); }
+    .log-entry.success .log-msg { color: var(--success); }
+    .log-entry.error   .log-msg { color: var(--error); }
+    .log-entry.warn    .log-msg { color: var(--warn); }
+    .log-entry.afk     .log-msg { color: var(--text-dim); font-size: 11px; }
+    .log-entry.timed   .log-msg { color: var(--timed); }
+    .chat-input-area { padding: 12px; border-top: 1px solid var(--border); display: flex; gap: 8px; flex-shrink: 0; }
+    .chat-input { flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 3px; padding: 10px 14px; font-family: 'Share Tech Mono', monospace; font-size: 13px; color: var(--text); outline: none; transition: border-color 0.2s; }
+    .chat-input:focus { border-color: var(--accent); }
+    .chat-input::placeholder { color: var(--text-muted); }
+    .chat-send { padding: 10px 18px; background: transparent; border: 1px solid var(--accent); border-radius: 3px; font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--accent); cursor: pointer; transition: all 0.2s; letter-spacing: 1px; }
+    .chat-send:hover { background: var(--accent); color: var(--bg); box-shadow: 0 0 15px rgba(0,229,255,0.25); }
+
+    /* Timed Messages */
+    .timed-header { padding: 10px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+    .timed-header span { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--text-dim); letter-spacing: 2px; }
+    .btn-add-msg { padding: 5px 12px; background: transparent; border: 1px solid var(--timed); border-radius: 3px; font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--timed); cursor: pointer; transition: all 0.2s; letter-spacing: 1px; }
+    .btn-add-msg:hover { background: var(--timed); color: var(--bg); }
+    .timed-list { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+    .timed-item { background: var(--surface2); border: 1px solid var(--border); border-radius: 3px; padding: 12px; display: flex; flex-direction: column; gap: 10px; transition: border-color 0.2s; }
+    .timed-item:hover { border-color: rgba(199,125,255,0.3); }
+    .timed-item.enabled-item { border-color: rgba(199,125,255,0.4); }
+    .timed-item-top { display: flex; align-items: center; gap: 10px; }
+    .timed-num { font-family: 'Orbitron', monospace; font-size: 10px; color: var(--text-muted); width: 20px; text-align: center; flex-shrink: 0; }
+    .timed-msg-input { flex: 1; background: var(--surface3); border: 1px solid var(--border); border-radius: 2px; padding: 7px 10px; font-family: 'Share Tech Mono', monospace; font-size: 12px; color: var(--text); outline: none; transition: border-color 0.2s; min-width: 0; }
+    .timed-msg-input:focus { border-color: var(--timed); }
+    .timed-msg-input::placeholder { color: var(--text-muted); }
+    .timed-item-bottom { display: flex; align-items: center; gap: 6px; padding-left: 30px; flex-wrap: wrap; }
+    .timed-time-label { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--text-muted); letter-spacing: 1px; white-space: nowrap; }
+    .timed-time-input { width: 48px; background: var(--surface3); border: 1px solid var(--border); border-radius: 2px; padding: 5px 6px; font-family: 'Share Tech Mono', monospace; font-size: 12px; color: var(--text); outline: none; transition: border-color 0.2s; text-align: center; }
+    .timed-time-input:focus { border-color: var(--timed); }
+    .timed-spacer { flex: 1; }
+    .timed-toggle { position: relative; width: 34px; height: 17px; cursor: pointer; flex-shrink: 0; }
+    .timed-toggle input { opacity: 0; width: 0; height: 0; }
+    .timed-slider { position: absolute; inset: 0; background: var(--surface3); border: 1px solid var(--border); border-radius: 17px; transition: all 0.2s; }
+    .timed-slider::before { content: ''; position: absolute; width: 11px; height: 11px; left: 2px; top: 50%; transform: translateY(-50%); background: var(--text-muted); border-radius: 50%; transition: all 0.2s; }
+    .timed-toggle input:checked + .timed-slider { background: rgba(199,125,255,0.15); border-color: var(--timed); }
+    .timed-toggle input:checked + .timed-slider::before { transform: translateY(-50%) translateX(17px); background: var(--timed); box-shadow: 0 0 6px var(--timed); }
+    .timed-del { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 14px; padding: 2px 4px; transition: color 0.2s; flex-shrink: 0; }
+    .timed-del:hover { color: var(--error); }
+    .timed-footer { padding: 10px 16px; border-top: 1px solid var(--border); flex-shrink: 0; }
+    .btn-apply-timed { width: 100%; padding: 9px; background: transparent; border: 1px solid var(--timed); border-radius: 3px; font-family: 'Share Tech Mono', monospace; font-size: 11px; letter-spacing: 2px; color: var(--timed); cursor: pointer; transition: all 0.2s; text-transform: uppercase; }
+    .btn-apply-timed:hover { background: var(--timed); color: var(--bg); }
+
+    /* ── Right Config Panel ── */
+    .config-panel { width: 260px; flex-shrink: 0; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+    .config-section { background: var(--surface2); border: 1px solid var(--border); border-radius: 3px; overflow: hidden; }
+    .config-section-header { padding: 9px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+    .config-section-header span { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--text-dim); letter-spacing: 2px; text-transform: uppercase; }
+    .config-section-header .section-badge { font-family: 'Share Tech Mono', monospace; font-size: 9px; padding: 2px 6px; border-radius: 10px; letter-spacing: 1px; }
+    .section-badge.active-badge { color: var(--cycle); background: rgba(255,179,71,0.1); border: 1px solid rgba(255,179,71,0.3); }
+    .config-body { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+    .config-field { display: flex; flex-direction: column; gap: 4px; }
+    .config-field label { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--text-muted); letter-spacing: 1px; text-transform: uppercase; }
+    .config-field input[type="number"],
+    .config-field input[type="text"] { background: var(--surface3); border: 1px solid var(--border); border-radius: 2px; padding: 7px 10px; font-family: 'Share Tech Mono', monospace; font-size: 12px; color: var(--text); outline: none; transition: border-color 0.2s; width: 100%; }
+    .config-field input:focus { border-color: var(--accent); }
+    .toggle-row { display: flex; align-items: center; justify-content: space-between; }
+    .toggle-label { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--text-dim); }
+    .toggle { position: relative; width: 34px; height: 17px; cursor: pointer; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider { position: absolute; inset: 0; background: var(--surface3); border: 1px solid var(--border); border-radius: 17px; transition: all 0.2s; }
+    .toggle-slider::before { content: ''; position: absolute; width: 11px; height: 11px; left: 2px; top: 50%; transform: translateY(-50%); background: var(--text-muted); border-radius: 50%; transition: all 0.2s; }
+    .toggle input:checked + .toggle-slider { background: rgba(0,229,255,0.15); border-color: var(--accent); }
+    .toggle input:checked + .toggle-slider::before { transform: translateY(-50%) translateX(17px); background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+    /* cycle toggle color */
+    .toggle.cycle-toggle input:checked + .toggle-slider { background: rgba(255,179,71,0.15); border-color: var(--cycle); }
+    .toggle.cycle-toggle input:checked + .toggle-slider::before { background: var(--cycle); box-shadow: 0 0 6px var(--cycle); }
+
+    .config-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .btn-save { width: 100%; padding: 9px; background: transparent; border: 1px solid var(--accent2); border-radius: 3px; font-family: 'Share Tech Mono', monospace; font-size: 11px; letter-spacing: 2px; color: var(--accent2); cursor: pointer; transition: all 0.2s; text-transform: uppercase; }
+    .btn-save:hover { background: var(--accent2); color: var(--bg); box-shadow: 0 0 15px rgba(0,255,136,0.25); }
+    .config-hint { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--text-muted); line-height: 1.6; }
+    .ping-indicator { width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); flex-shrink: 0; }
+    .ping-indicator.online { background: var(--success); box-shadow: 0 0 6px var(--success); animation: pingPulse 2s ease-in-out infinite; }
+    @keyframes pingPulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+    /* ── Modal ── */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(5,11,14,0.85); backdrop-filter: blur(4px); z-index: 100; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+    .modal-overlay.open { opacity: 1; pointer-events: all; }
+    .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 4px; width: 540px; max-width: 95vw; max-height: 90vh; display: flex; flex-direction: column; position: relative; transform: translateY(20px); transition: transform 0.2s; }
+    .modal-overlay.open .modal { transform: translateY(0); }
+    .modal::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, var(--accent), transparent); }
+    .modal-header { padding: 18px 24px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+    .modal-header h3 { font-family: 'Orbitron', monospace; font-size: 13px; letter-spacing: 2px; color: var(--text); }
+    .modal-close { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 18px; line-height: 1; transition: color 0.2s; }
+    .modal-close:hover { color: var(--error); }
+    .modal-body { padding: 20px 24px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; flex: 1; }
+    .modal-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .modal-field { display: flex; flex-direction: column; gap: 6px; }
+    .modal-field label { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--text-dim); letter-spacing: 2px; text-transform: uppercase; }
+    .modal-field input, .modal-field select { background: var(--surface2); border: 1px solid var(--border); border-radius: 3px; padding: 9px 12px; font-family: 'Share Tech Mono', monospace; font-size: 13px; color: var(--text); outline: none; transition: border-color 0.2s; width: 100%; }
+    .modal-field input:focus, .modal-field select:focus { border-color: var(--accent); }
+    .modal-field select option { background: var(--surface); }
+    .section-divider { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--text-dim); letter-spacing: 2px; text-transform: uppercase; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+    .afk-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+    .afk-item { display: flex; flex-direction: column; gap: 6px; }
+    .modal-footer { padding: 14px 24px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end; flex-shrink: 0; }
+    .btn-modal-cancel { padding: 9px 18px; background: transparent; border: 1px solid var(--border); border-radius: 3px; font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--text-dim); cursor: pointer; transition: all 0.2s; }
+    .btn-modal-cancel:hover { border-color: var(--error); color: var(--error); }
+    .btn-modal-save { padding: 9px 20px; background: transparent; border: 1px solid var(--accent); border-radius: 3px; font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--accent); cursor: pointer; transition: all 0.2s; letter-spacing: 1px; }
+    .btn-modal-save:hover { background: var(--accent); color: var(--bg); box-shadow: 0 0 15px rgba(0,229,255,0.25); }
+    .modal-alert { font-family: 'Share Tech Mono', monospace; font-size: 11px; padding: 8px 12px; border-radius: 2px; display: none; }
+    .modal-alert.error   { background: rgba(255,71,87,0.1); border: 1px solid rgba(255,71,87,0.3); color: var(--error); display: block; }
+    .modal-alert.success { background: rgba(0,255,136,0.1); border: 1px solid rgba(0,255,136,0.2); color: var(--success); display: block; }
+    .modal-toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 2px 0; }
+    .modal-toggle-label { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--text-dim); }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">SleepyAfk</div>
+  <div class="topbar-sep"></div>
+  <div style="display:flex;gap:2px;margin-left:8px;">
+    <button class="btn-sm" onclick="location.href='home.html'" style="letter-spacing:2px;">⌂ Home</button>
+    <button class="btn-sm active-nav" style="border-color:var(--accent);color:var(--accent);letter-spacing:2px;">⚡ Bots</button>
+  </div>
+  <div class="topbar-sep" style="margin-left:12px;"></div>
+  <div class="topbar-user">Logged in as <span id="topbarUser">—</span></div>
+  <div class="topbar-actions">
+    <button class="btn-sm danger" onclick="logout()">Logout</button>
+  </div>
+</div>
+
+<div class="main">
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <span class="sidebar-title">Bots</span>
+      <button class="btn-add" title="Add Bot" onclick="openAddModal()">+</button>
+    </div>
+    <div class="bot-list" id="botList">
+      <div class="empty-state"><p>No bots yet.<br/>Click + to add your first bot.</p></div>
+    </div>
+  </div>
+
+  <div class="content">
+    <div id="welcomeScreen" class="welcome-screen">
+      <svg width="80" height="80" viewBox="0 0 80 80" fill="none">
+        <rect x="10" y="10" width="60" height="60" stroke="#00e5ff" stroke-width="1.5"/>
+        <rect x="20" y="20" width="12" height="12" fill="#00e5ff"/>
+        <rect x="48" y="20" width="12" height="12" fill="#00e5ff"/>
+        <rect x="25" y="48" width="30" height="5" fill="#00ff88"/>
+        <rect x="30" y="32" width="20" height="10" fill="#00e5ff" opacity="0.4"/>
+      </svg>
+      <h2>SELECT A BOT</h2>
+      <p>Choose a bot from the sidebar or create a new one</p>
+    </div>
+
+    <div id="botPanel" class="bot-panel">
+      <div class="bot-panel-header">
+        <div id="pingDot" class="ping-indicator"></div>
+        <h2 id="panelBotName">—</h2>
+        <span id="panelBotHost" class="host-tag">—</span>
+        <div class="header-actions">
+          <button class="btn-control start" id="btnStart" onclick="controlBot('start')">▶ START</button>
+          <button class="btn-control stop"  id="btnStop"  onclick="controlBot('stop')"  style="display:none">■ STOP</button>
+          <button class="btn-control edit"  onclick="openEditModal()">✎ EDIT</button>
+          <button class="btn-control del"   onclick="deleteBot()">✕ DELETE</button>
+        </div>
+      </div>
+
+      <div class="stats-bar">
+        <div class="stat"><div class="stat-label">Status</div><div class="stat-value" id="statStatus" style="font-size:12px;letter-spacing:1px;color:var(--text-muted)">OFFLINE</div></div>
+        <div class="stat"><div class="stat-label">Health</div><div class="stat-value green"  id="statHealth">—</div></div>
+        <div class="stat"><div class="stat-label">Food</div>  <div class="stat-value orange" id="statFood">—</div></div>
+        <div class="stat"><div class="stat-label">Ping</div>  <div class="stat-value"        id="statPing">—</div></div>
+      </div>
+
+      <div class="panel-body">
+        <!-- Left panel -->
+        <div class="left-panel">
+          <div class="panel-tabs">
+            <button class="panel-tab active" onclick="switchPanelTab('console', this)">Console</button>
+            <button class="panel-tab" onclick="switchPanelTab('timed', this)">⏱ Timed Messages</button>
+          </div>
+
+          <div class="tab-content active" id="tabConsole">
+            <div class="log-header">
+              <span>Live Output</span>
+              <button class="log-clear" onclick="clearLogs()">CLEAR</button>
+            </div>
+            <div class="log-output" id="logOutput"></div>
+            <div class="chat-input-area">
+              <input type="text" class="chat-input" id="chatInput" placeholder="Send a message or /command..." maxlength="256" />
+              <button class="chat-send" onclick="sendChat()">SEND</button>
+            </div>
+          </div>
+
+          <div class="tab-content" id="tabTimed">
+            <div class="timed-header">
+              <span>Scheduled Messages</span>
+              <button class="btn-add-msg" onclick="addTimedMessage()">+ Add</button>
+            </div>
+            <div class="timed-list" id="timedList"></div>
+            <div class="timed-footer">
+              <button class="btn-apply-timed" onclick="saveTimedMessages()">⟳ Save &amp; Apply</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right config panel -->
+        <div class="config-panel">
+
+          <!-- Bot Info -->
+          <div class="config-section">
+            <div class="config-section-header"><span>Bot Info</span></div>
+            <div class="config-body">
+              <div class="config-field"><label>Username</label><input type="text" id="cfgUsername" readonly /></div>
+              <div class="config-field"><label>Server</label>  <input type="text" id="cfgServer"   readonly /></div>
+              <div class="config-field"><label>Version</label> <input type="text" id="cfgVersion"  readonly /></div>
+            </div>
+          </div>
+
+          <!-- Connection -->
+          <div class="config-section">
+            <div class="config-section-header"><span>Connection</span></div>
+            <div class="config-body">
+              <div class="toggle-row">
+                <span class="toggle-label">Auto-Rejoin on Drop</span>
+                <label class="toggle"><input type="checkbox" id="liveAutoRejoin" onchange="saveLiveConfig()" /><span class="toggle-slider"></span></label>
+              </div>
+              <div class="toggle-row">
+                <span class="toggle-label">Auto-Leave on Kick</span>
+                <label class="toggle"><input type="checkbox" id="liveAutoLeave" onchange="saveLiveConfig()" /><span class="toggle-slider"></span></label>
+              </div>
+              <div class="config-field">
+                <label>On-Join Command</label>
+                <input type="text" id="liveOnJoinCommand" placeholder="/lobby" maxlength="256" onchange="saveLiveConfig()" />
+              </div>
+              <p class="config-hint">Sent 1.5s after bot spawns — every join including cycle rejoins.</p>
+            </div>
+          </div>
+
+          <!-- Cycle Leave/Rejoin -->
+          <div class="config-section">
+            <div class="config-section-header">
+              <span>Cycle Leave / Rejoin</span>
+              <span class="section-badge active-badge" id="cycleBadge" style="display:none">ON</span>
+            </div>
+            <div class="config-body">
+              <div class="toggle-row">
+                <span class="toggle-label">Enable Cycle</span>
+                <label class="toggle cycle-toggle"><input type="checkbox" id="liveCycleEnabled" onchange="saveLiveConfig(); updateCycleBadge()" /><span class="toggle-slider"></span></label>
+              </div>
+              <div class="config-row">
+                <div class="config-field">
+                  <label>Leave Every (min)</label>
+                  <input type="number" id="liveCycleLeaveEvery" min="1" max="1440" value="15" onchange="saveLiveConfig()" />
+                </div>
+                <div class="config-field">
+                  <label>Rejoin After (sec)</label>
+                  <input type="number" id="liveCycleRejoinAfter" min="1" max="300" value="5" onchange="saveLiveConfig()" />
+                </div>
+              </div>
+              <p class="config-hint">Bot will disconnect every X minutes, wait Y seconds, then reconnect and run the on-join command.</p>
+            </div>
+          </div>
+
+          <!-- Anti-AFK -->
+          <div class="config-section">
+            <div class="config-section-header"><span>Anti-AFK Live</span></div>
+            <div class="config-body">
+              <div class="toggle-row">
+                <span class="toggle-label">Jump</span>
+                <label class="toggle"><input type="checkbox" id="liveJumpEnabled" onchange="saveLiveConfig()" /><span class="toggle-slider"></span></label>
+              </div>
+              <div class="config-field"><label>Jump every (sec)</label><input type="number" id="liveJumpInterval" min="5" max="300" onchange="saveLiveConfig()" /></div>
+              <div class="toggle-row">
+                <span class="toggle-label">Walk</span>
+                <label class="toggle"><input type="checkbox" id="liveWalkEnabled" onchange="saveLiveConfig()" /><span class="toggle-slider"></span></label>
+              </div>
+              <div class="config-field"><label>Walk every (sec)</label><input type="number" id="liveWalkInterval" min="5" max="300" onchange="saveLiveConfig()" /></div>
+              <div class="toggle-row">
+                <span class="toggle-label">Look Around</span>
+                <label class="toggle"><input type="checkbox" id="liveLookEnabled" onchange="saveLiveConfig()" /><span class="toggle-slider"></span></label>
+              </div>
+              <div class="config-field"><label>Look every (sec)</label><input type="number" id="liveLookInterval" min="5" max="300" onchange="saveLiveConfig()" /></div>
+              <button class="btn-save" onclick="saveLiveConfig(true)">⟳ Apply Now</button>
+            </div>
+          </div>
+
+        </div><!-- /config-panel -->
+      </div><!-- /panel-body -->
+    </div><!-- /bot-panel -->
+  </div><!-- /content -->
+</div><!-- /main -->
+
+<!-- Add/Edit Bot Modal -->
+<div class="modal-overlay" id="botModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modalTitle">ADD BOT</h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-alert" id="modalAlert"></div>
+      <div class="modal-row">
+        <div class="modal-field"><label>Display Name</label><input type="text" id="mName" placeholder="My AFK Bot" /></div>
+        <div class="modal-field"><label>Bot Username</label><input type="text" id="mUsername" placeholder="AFK_Player" /></div>
+      </div>
+      <div class="modal-row">
+        <div class="modal-field"><label>Server IP</label><input type="text" id="mHost" placeholder="play.example.com" /></div>
+        <div class="modal-field"><label>Port</label><input type="number" id="mPort" placeholder="25565" value="25565" /></div>
+      </div>
+      <div class="modal-field">
+        <label>Minecraft Version</label>
+        <select id="mVersion">
+          <option value="">Auto-detect</option>
+          <option value="1.21.1">1.21.1</option><option value="1.20.4">1.20.4</option>
+          <option value="1.20.1">1.20.1</option><option value="1.19.4">1.19.4</option>
+          <option value="1.19.2">1.19.2</option><option value="1.18.2">1.18.2</option>
+          <option value="1.17.1">1.17.1</option><option value="1.16.5">1.16.5</option>
+          <option value="1.12.2">1.12.2</option><option value="1.8.9">1.8.9</option>
+        </select>
+      </div>
+
+      <div class="section-divider">Connection Settings</div>
+      <div class="modal-toggle-row">
+        <span class="modal-toggle-label">Auto-Rejoin on Drop</span>
+        <label class="toggle"><input type="checkbox" id="mAutoRejoin" /><span class="toggle-slider"></span></label>
+      </div>
+      <div class="modal-toggle-row">
+        <span class="modal-toggle-label">Auto-Leave on Kick</span>
+        <label class="toggle"><input type="checkbox" id="mAutoLeave" /><span class="toggle-slider"></span></label>
+      </div>
+      <div class="modal-field"><label>On-Join Command (optional)</label><input type="text" id="mOnJoinCommand" placeholder="/lobby  or  /register pass123" maxlength="256" /></div>
+
+      <div class="section-divider">Cycle Leave / Rejoin</div>
+      <div class="modal-toggle-row">
+        <span class="modal-toggle-label">Enable Cycle Leave/Rejoin</span>
+        <label class="toggle cycle-toggle"><input type="checkbox" id="mCycleEnabled" /><span class="toggle-slider"></span></label>
+      </div>
+      <div class="modal-row">
+        <div class="modal-field"><label>Leave Every (min)</label><input type="number" id="mCycleLeaveEvery" value="15" min="1" max="1440" /></div>
+        <div class="modal-field"><label>Rejoin After (sec)</label><input type="number" id="mCycleRejoinAfter" value="5" min="1" max="300" /></div>
+      </div>
+
+      <div class="section-divider">Anti-AFK Settings</div>
+      <div class="afk-grid">
+        <div class="afk-item">
+          <div class="toggle-row"><span class="toggle-label">Jump</span><label class="toggle"><input type="checkbox" id="mJumpEnabled" checked /><span class="toggle-slider"></span></label></div>
+          <div class="modal-field"><label>Every (sec)</label><input type="number" id="mJumpInterval" value="30" min="5" max="300" /></div>
+        </div>
+        <div class="afk-item">
+          <div class="toggle-row"><span class="toggle-label">Walk</span><label class="toggle"><input type="checkbox" id="mWalkEnabled" checked /><span class="toggle-slider"></span></label></div>
+          <div class="modal-field"><label>Every (sec)</label><input type="number" id="mWalkInterval" value="45" min="5" max="300" /></div>
+        </div>
+        <div class="afk-item">
+          <div class="toggle-row"><span class="toggle-label">Look</span><label class="toggle"><input type="checkbox" id="mLookEnabled" checked /><span class="toggle-slider"></span></label></div>
+          <div class="modal-field"><label>Every (sec)</label><input type="number" id="mLookInterval" value="20" min="5" max="300" /></div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-modal-save" onclick="saveBot()">Save Bot</button>
+    </div>
+  </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/dashboard.js"></script>
+</body>
+</html>
