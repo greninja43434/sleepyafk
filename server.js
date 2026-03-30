@@ -461,37 +461,40 @@ function enableAutoRespawn(botId, bot) {
   });
 }
 
-// ─── Servers (Pterodactyl) Storage ───────────────────────────────────────────
+// ─── Servers (MC Status Monitor) Storage ────────────────────────────────────────
 const SERVERS_FILE = path.join(DATA_DIR, 'servers.json');
 if (!fs.existsSync(SERVERS_FILE)) fs.writeFileSync(SERVERS_FILE, '[]');
 function readServers()   { try { return JSON.parse(fs.readFileSync(SERVERS_FILE,'utf8')); } catch { return []; } }
 function writeServers(d) { fs.writeFileSync(SERVERS_FILE, JSON.stringify(d, null, 2)); }
 
-// Pterodactyl proxy routes — keeps API keys server-side, never exposed to browser
+// GET all servers for this user
 app.get('/api/servers', auth, (req, res) => {
   const servers = readServers().filter(s => s.owner === req.user.username);
-  res.json(servers.map(s => ({ id: s.id, name: s.name, panelUrl: s.panelUrl, serverId: s.serverId, createdAt: s.createdAt })));
+  res.json(servers.map(s => ({ id:s.id, name:s.name, host:s.host, port:s.port, tags:s.tags||[], createdAt:s.createdAt })));
 });
 
+// Add a server
 app.post('/api/servers', auth, (req, res) => {
-  const { name, panelUrl, serverId, apiKey } = req.body;
-  if (!name || !panelUrl || !serverId || !apiKey) return res.status(400).json({ error: 'name, panelUrl, serverId, apiKey required' });
+  const { name, host, port, tags } = req.body;
+  if (!name || !host) return res.status(400).json({ error: 'name and host required' });
   const servers = readServers();
-  const ns = { id: Date.now().toString(), owner: req.user.username, name, panelUrl: panelUrl.replace(/\/$/, ''), serverId, apiKey, createdAt: new Date().toISOString() };
+  const ns = { id: Date.now().toString(), owner: req.user.username, name, host: host.trim(), port: parseInt(port)||25565, tags: tags||[], createdAt: new Date().toISOString() };
   servers.push(ns); writeServers(servers);
-  res.json({ id: ns.id, name: ns.name, panelUrl: ns.panelUrl, serverId: ns.serverId, createdAt: ns.createdAt });
+  res.json({ id:ns.id, name:ns.name, host:ns.host, port:ns.port, tags:ns.tags, createdAt:ns.createdAt });
 });
 
+// Edit a server
 app.put('/api/servers/:id', auth, (req, res) => {
   const servers = readServers();
   const idx = servers.findIndex(s => s.id === req.params.id && s.owner === req.user.username);
   if (idx === -1) return res.status(404).json({ error: 'Not found' });
-  const { name, panelUrl, serverId, apiKey } = req.body;
-  servers[idx] = { ...servers[idx], name: name||servers[idx].name, panelUrl: (panelUrl||servers[idx].panelUrl).replace(/\/$/, ''), serverId: serverId||servers[idx].serverId, apiKey: apiKey||servers[idx].apiKey };
+  const { name, host, port, tags } = req.body;
+  servers[idx] = { ...servers[idx], name:name||servers[idx].name, host:(host||servers[idx].host).trim(), port:parseInt(port)||servers[idx].port, tags:tags||servers[idx].tags||[] };
   writeServers(servers);
-  res.json({ id: servers[idx].id, name: servers[idx].name, panelUrl: servers[idx].panelUrl, serverId: servers[idx].serverId });
+  res.json({ id:servers[idx].id, name:servers[idx].name, host:servers[idx].host, port:servers[idx].port, tags:servers[idx].tags });
 });
 
+// Delete a server
 app.delete('/api/servers/:id', auth, (req, res) => {
   const servers = readServers();
   const idx = servers.findIndex(s => s.id === req.params.id && s.owner === req.user.username);
@@ -500,75 +503,28 @@ app.delete('/api/servers/:id', auth, (req, res) => {
   res.json({ success: true });
 });
 
-// Proxy: get server status from Pterodactyl
-app.get('/api/servers/:id/status', auth, async (req, res) => {
+// Proxy: fetch live status from mcsrvstat.us API (avoids CORS, hides calls)
+app.get('/api/servers/:id/ping', auth, async (req, res) => {
   const s = readServers().find(s => s.id === req.params.id && s.owner === req.user.username);
   if (!s) return res.status(404).json({ error: 'Not found' });
   try {
-    const r = await fetch(`${s.panelUrl}/api/client/servers/${s.serverId}/resources`, {
-      headers: { 'Authorization': `Bearer ${s.apiKey}`, 'Accept': 'application/json' }
-    });
+    const apiUrl = `https://api.mcsrvstat.us/3/${encodeURIComponent(s.host)}:${s.port}`;
+    const r = await fetch(apiUrl, { headers: { 'User-Agent': 'SleepyAfk/1.0' } });
     const data = await r.json();
     res.json(data);
-  } catch (err) { res.status(502).json({ error: err.message }); }
+  } catch(err) { res.status(502).json({ error: err.message, online: false }); }
 });
 
-// Proxy: power action
-app.post('/api/servers/:id/power', auth, async (req, res) => {
-  const s = readServers().find(s => s.id === req.params.id && s.owner === req.user.username);
-  if (!s) return res.status(404).json({ error: 'Not found' });
-  const { signal } = req.body; // start | stop | restart | kill
-  if (!['start','stop','restart','kill'].includes(signal)) return res.status(400).json({ error: 'Invalid signal' });
-  try {
-    const r = await fetch(`${s.panelUrl}/api/client/servers/${s.serverId}/power`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${s.apiKey}`, 'Accept': 'application/json', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ signal })
-    });
-    res.json({ success: r.ok, status: r.status });
-  } catch (err) { res.status(502).json({ error: err.message }); }
-});
-
-// Proxy: send console command
-app.post('/api/servers/:id/command', auth, async (req, res) => {
-  const s = readServers().find(s => s.id === req.params.id && s.owner === req.user.username);
-  if (!s) return res.status(404).json({ error: 'Not found' });
-  const { command } = req.body;
-  if (!command) return res.status(400).json({ error: 'command required' });
-  try {
-    const r = await fetch(`${s.panelUrl}/api/client/servers/${s.serverId}/command`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${s.apiKey}`, 'Accept': 'application/json', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ command })
-    });
-    res.json({ success: r.ok, status: r.status });
-  } catch (err) { res.status(502).json({ error: err.message }); }
-});
-
-// Proxy: get server info
-app.get('/api/servers/:id/info', auth, async (req, res) => {
+// Proxy: fetch player list separately (mcsrvstat simple endpoint)
+app.get('/api/servers/:id/players', auth, async (req, res) => {
   const s = readServers().find(s => s.id === req.params.id && s.owner === req.user.username);
   if (!s) return res.status(404).json({ error: 'Not found' });
   try {
-    const r = await fetch(`${s.panelUrl}/api/client/servers/${s.serverId}`, {
-      headers: { 'Authorization': `Bearer ${s.apiKey}`, 'Accept': 'application/json' }
-    });
+    const apiUrl = `https://api.mcsrvstat.us/3/${encodeURIComponent(s.host)}:${s.port}`;
+    const r = await fetch(apiUrl, { headers: { 'User-Agent': 'SleepyAfk/1.0' } });
     const data = await r.json();
-    res.json(data);
-  } catch (err) { res.status(502).json({ error: err.message }); }
-});
-
-// WebSocket token for Pterodactyl console (client gets this, then connects directly)
-app.get('/api/servers/:id/ws-token', auth, async (req, res) => {
-  const s = readServers().find(s => s.id === req.params.id && s.owner === req.user.username);
-  if (!s) return res.status(404).json({ error: 'Not found' });
-  try {
-    const r = await fetch(`${s.panelUrl}/api/client/servers/${s.serverId}/websocket`, {
-      headers: { 'Authorization': `Bearer ${s.apiKey}`, 'Accept': 'application/json' }
-    });
-    const data = await r.json();
-    res.json(data); // contains { data: { socket, token } }
-  } catch (err) { res.status(502).json({ error: err.message }); }
+    res.json({ online: data.online||false, players: data.players||{online:0,max:0,list:[]} });
+  } catch(err) { res.status(502).json({ error: err.message }); }
 });
 
 // ─── Discord webhook routes ────────────────────────────────────────────────────

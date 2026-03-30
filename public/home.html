@@ -252,6 +252,16 @@
     <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-muted)" id="lastRefresh">—</div>
   </div>
 
+  <!-- Server Status Mini Section -->
+  <div class="bots-section" id="serversHomeSection" style="display:none">
+    <div class="section-header">
+      <span class="section-title">🖥 Server Status</span>
+      <button class="btn-new-bot" onclick="location.href='servers.html'" style="border-color:var(--accent2);color:var(--accent2);">View All Servers</button>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;" id="homeServerCards">
+    </div>
+  </div>
+
   <!-- Bot grid -->
   <div class="bots-section">
     <div class="section-header">
@@ -692,6 +702,44 @@ setInterval(async ()=>{
 // ─── Init ─────────────────────────────────────────────────────────────────────
 window.addEventListener('resize', ()=>redrawChart());
 refreshAll();
+loadHomeServers();
+
+async function loadHomeServers(){
+  const data = await api('GET','/api/servers');
+  if (!data || !data.length) return;
+  document.getElementById('serversHomeSection').style.display='';
+  const grid = document.getElementById('homeServerCards');
+  // Show skeleton cards first
+  grid.innerHTML = data.map(s=>`
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:14px;display:flex;flex-direction:column;gap:8px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div style="font-family:'Orbitron',monospace;font-size:11px;color:var(--text);letter-spacing:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;">${escHtml(s.name)}</div>
+        <div class="status-pill loading" id="hspill_${s.id}" style="font-family:'Share Tech Mono',monospace;font-size:9px;padding:2px 7px;border-radius:10px;color:var(--text-muted);background:rgba(42,80,96,0.2);border:1px solid var(--border2);">...</div>
+      </div>
+      <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-dim);">${escHtml(s.host)}:${s.port}</div>
+      <div style="display:flex;justify-content:space-between;">
+        <span style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-muted);">Players: <span id="hsplayers_${s.id}" style="color:var(--accent2);">—</span></span>
+        <span style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-muted);">Ping: <span id="hsping_${s.id}" style="color:var(--accent3);">—</span></span>
+      </div>
+    </div>`).join('');
+  // Ping each
+  data.forEach(async s => {
+    const status = await api('GET',`/api/servers/${s.id}/ping`);
+    const pill = document.getElementById(`hspill_${s.id}`);
+    const plEl = document.getElementById(`hsplayers_${s.id}`);
+    const pgEl = document.getElementById(`hsping_${s.id}`);
+    if (!status) return;
+    if (pill) {
+      const online = status.online;
+      pill.textContent = online ? 'ONLINE' : 'OFFLINE';
+      pill.style.color = online ? 'var(--success)' : 'var(--error)';
+      pill.style.background = online ? 'rgba(0,255,136,0.1)' : 'rgba(255,71,87,0.1)';
+      pill.style.borderColor = online ? 'rgba(0,255,136,0.25)' : 'rgba(255,71,87,0.2)';
+    }
+    if (plEl) plEl.textContent = status.online ? `${status.players?.online||0}/${status.players?.max||0}` : '—';
+    if (pgEl) pgEl.textContent = status.online && status.debug?.ping ? status.debug.ping+'ms' : '—';
+  });
+}
 </script>
 </body>
 </html>
