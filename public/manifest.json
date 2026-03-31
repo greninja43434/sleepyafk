@@ -1,0 +1,14 @@
+{
+  "name": "SleepyAfk",
+  "short_name": "SleepyAfk",
+  "description": "Minecraft AFK Bot Manager",
+  "start_url": "/home.html",
+  "display": "standalone",
+  "background_color": "#050b0e",
+  "theme_color": "#00e5ff",
+  "orientation": "any",
+  "icons": [
+    {"src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' fill='%23050b0e'/><text y='140' font-size='140' text-anchor='middle' x='96'>🤖</text></svg>", "sizes": "192x192", "type": "image/svg+xml"},
+    {"src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' fill='%23050b0e'/><text y='380' font-size='380' text-anchor='middle' x='256'>🤖</text></svg>", "sizes": "512x512", "type": "image/svg+xml"}
+  ]
+}

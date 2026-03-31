@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>SleepyAfk — Status</title>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@700;900&family=Rajdhani:wght@400;600&display=swap" rel="stylesheet"/>
+  <style>
+    :root{--bg:#050b0e;--surface:#0c1a1f;--surface2:#0f2028;--border:#1a3a44;--accent:#00e5ff;--accent2:#00ff88;--text:#c8e6ef;--text-dim:#4a7a8a;--text-muted:#2a5060;--error:#ff4757;--success:#00ff88;}
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{background:var(--bg);font-family:'Rajdhani',sans-serif;color:var(--text);min-height:100vh;padding:0;}
+    body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,229,255,0.02)1px,transparent 1px),linear-gradient(90deg,rgba(0,229,255,0.02)1px,transparent 1px);background-size:40px 40px;pointer-events:none;}
+    header{background:var(--surface);border-bottom:1px solid var(--border);padding:20px 40px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:10;}
+    header::after{content:'';position:absolute;bottom:-1px;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--accent),transparent);opacity:0.4;}
+    .brand{font-family:'Orbitron',monospace;font-size:18px;font-weight:900;letter-spacing:3px;color:var(--accent);}
+    .header-user{font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--text-dim);}
+    .header-user span{color:var(--accent2);}
+    .last-updated{margin-left:auto;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-muted);}
+    main{max-width:1000px;margin:0 auto;padding:32px 24px;}
+    h2{font-family:'Orbitron',monospace;font-size:12px;letter-spacing:3px;color:var(--text-dim);text-transform:uppercase;margin-bottom:14px;margin-top:28px;}
+    h2:first-of-type{margin-top:0;}
+    .bot-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;}
+    .bot-card{background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:16px;display:flex;align-items:center;gap:12px;position:relative;overflow:hidden;}
+    .bot-card.online {border-top:2px solid var(--success);}
+    .bot-card.offline{border-top:2px solid var(--error);}
+    .bot-avatar{font-size:24px;flex-shrink:0;}
+    .bot-info{flex:1;min-width:0;}
+    .bot-name{font-family:'Orbitron',monospace;font-size:11px;font-weight:700;color:var(--text);letter-spacing:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .bot-host{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-dim);margin-top:2px;}
+    .pill{padding:3px 10px;border-radius:10px;font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:1px;flex-shrink:0;}
+    .pill.online {color:var(--success);background:rgba(0,255,136,0.1);border:1px solid rgba(0,255,136,0.25);}
+    .pill.offline{color:var(--error);background:rgba(255,71,87,0.1);border:1px solid rgba(255,71,87,0.2);}
+    .server-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;}
+    .server-card{background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:16px;}
+    .server-name{font-family:'Orbitron',monospace;font-size:11px;font-weight:700;color:var(--text);letter-spacing:1px;margin-bottom:6px;}
+    .server-host{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-dim);margin-bottom:10px;}
+    .server-stats{display:flex;gap:12px;}
+    .ss{text-align:center;}
+    .ss-val{font-family:'Orbitron',monospace;font-size:14px;font-weight:700;color:var(--accent);}
+    .ss-label{font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--text-muted);letter-spacing:1px;text-transform:uppercase;margin-top:2px;}
+    .empty{text-align:center;padding:40px;font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-muted);line-height:2;}
+    .powered{text-align:center;padding:40px;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-muted);}
+    .powered a{color:var(--accent);text-decoration:none;}
+    @keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
+  </style>
+</head>
+<body>
+<header>
+  <div class="brand">SleepyAfk</div>
+  <div class="header-user">Status page for <span id="headerUser">—</span></div>
+  <div class="last-updated" id="lastUpdated">Loading...</div>
+</header>
+<main>
+  <h2>🤖 Bots</h2>
+  <div class="bot-grid" id="botGrid"><div class="empty">Loading...</div></div>
+  <h2>🖥️ Servers</h2>
+  <div class="server-grid" id="serverGrid"><div class="empty">Loading...</div></div>
+</main>
+<div class="powered">Powered by <a href="/">SleepyAfk</a></div>
+<script>
+const params=new URLSearchParams(location.search);
+const user=params.get('u');
+if(!user){document.body.innerHTML='<div style="text-align:center;padding:60px;font-family:monospace;color:#ff4757;">No user specified. Add ?u=username to the URL.</div>';}
+else{ load(); setInterval(load,30000); }
+
+async function load(){
+  const r=await fetch(`/api/public/${encodeURIComponent(user)}`);
+  if(!r.ok){document.body.innerHTML=`<div style="text-align:center;padding:60px;font-family:monospace;color:#ff4757;">User "${user}" not found.</div>`;return;}
+  const data=await r.json();
+  document.title=`${data.username}'s Status — SleepyAfk`;
+  document.getElementById('headerUser').textContent=data.username;
+  document.getElementById('lastUpdated').textContent='Updated '+new Date().toLocaleTimeString('en-US',{hour12:false});
+
+  // Bots
+  const bg=document.getElementById('botGrid');
+  if(!data.bots.length){bg.innerHTML='<div class="empty">No bots yet.</div>';}
+  else{bg.innerHTML=data.bots.map(b=>`
+    <div class="bot-card ${b.online?'online':'offline'}">
+      <div class="bot-avatar">${b.avatar||'🤖'}</div>
+      <div class="bot-info">
+        <div class="bot-name" style="color:${b.color||'var(--text)'}">${esc(b.name)}</div>
+        <div class="bot-host">${esc(b.host)}:${b.port} · ${esc(b.username)}</div>
+      </div>
+      <div class="pill ${b.online?'online':'offline'}">${b.online?'ONLINE':'OFFLINE'}</div>
+    </div>`).join('');}
+
+  // Servers
+  const sg=document.getElementById('serverGrid');
+  if(!data.servers.length){sg.innerHTML='<div class="empty">No servers monitored.</div>';}
+  else{
+    sg.innerHTML=data.servers.map(s=>`
+      <div class="server-card">
+        <div class="server-name">${esc(s.name)}</div>
+        <div class="server-host">${esc(s.host)}:${s.port}</div>
+        <div class="server-stats" id="ss_${s.id}"><div class="ss"><div class="ss-val" style="font-size:12px;color:var(--text-muted)">Checking...</div></div></div>
+      </div>`).join('');
+    // Ping each server (need auth — use public endpoint)
+    data.servers.forEach(async s=>{
+      try{
+        const pr=await fetch(`https://api.mcsrvstat.us/3/${encodeURIComponent(s.host)}:${s.port}`);
+        const pd=await pr.json();
+        const el=document.getElementById(`ss_${s.id}`);
+        if(el){
+          const on=pd.online;
+          el.innerHTML=`
+            <div class="ss"><div class="ss-val" style="color:${on?'var(--success)':'var(--error)'}">${on?'ON':'OFF'}</div><div class="ss-label">Status</div></div>
+            <div class="ss"><div class="ss-val" style="color:var(--accent2)">${on?(pd.players?.online||0):'-'}</div><div class="ss-label">Players</div></div>
+            <div class="ss"><div class="ss-val" style="font-size:11px;color:var(--text-dim)">${on?(pd.version||'-'):'-'}</div><div class="ss-label">Version</div></div>`;
+        }
+      }catch{}
+    });
+  }
+}
+function esc(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+</script>
+</body>
+</html>

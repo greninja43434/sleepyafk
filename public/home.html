@@ -3,7 +3,13 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <link rel="manifest" href="/manifest.json"/>
+  <meta name="theme-color" content="#00e5ff"/>
   <title>SleepyAfk — Home</title>
+    <link rel="manifest" href="/manifest.json"/>
+  <meta name="theme-color" content="#00e5ff"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
   <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@700;900&display=swap" rel="stylesheet"/>
   <style>
     :root {
@@ -157,12 +163,15 @@
   <div class="brand">SleepyAfk</div>
   <nav class="nav">
     <button class="nav-btn active" onclick="location.href='home.html'">⌂ Home</button>
-    <button class="nav-btn" onclick="location.href='dashboard.html'">⚡ Bots</button>
-    <button class="nav-btn" onclick="location.href='servers.html'">🖥 Servers</button>
+    <button class="nav-btn " onclick="location.href='dashboard.html'">⚡ Bots</button>
+    <button class="nav-btn " onclick="location.href='servers.html'">🖥 Servers</button>
+    <button class="nav-btn " onclick="location.href='account.html'">👤 Account</button>
   </nav>
   <div class="topbar-right">
     <div class="time-display" id="clockDisplay">00:00:00</div>
     <div class="topbar-user">Logged in as <span id="topbarUser">—</span></div>
+    <button class="btn-sm" onclick="toggleThemeHome()" title="Switch theme">◑ Theme</button>
+    <button class="btn-sm" onclick="window.open('/status/'+username,'_blank')" title="Your public status page">🔗 Status</button>
     <button class="btn-sm danger" onclick="logout()">Logout</button>
   </div>
 </div>
@@ -699,6 +708,11 @@ setInterval(async ()=>{
   renderBotGrid();
 }, 30000);
 
+// ─── Theme ───────────────────────────────────────────────────────────────────
+function applyThemeHome(t) { document.documentElement.setAttribute('data-theme',t||'dark'); localStorage.setItem('sleepyafk_theme',t); }
+function toggleThemeHome() { const c=document.documentElement.getAttribute('data-theme')||'dark'; const n={dark:'dim',dim:'light',light:'dark'}[c]||'dark'; applyThemeHome(n); fetch('/api/me/theme',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({theme:n})}); }
+(()=>{ const s=localStorage.getItem('sleepyafk_theme'); if(s) applyThemeHome(s); })();
+
 // ─── Init ─────────────────────────────────────────────────────────────────────
 window.addEventListener('resize', ()=>redrawChart());
 refreshAll();
@@ -741,5 +755,7 @@ async function loadHomeServers(){
   });
 }
 </script>
+
+<script>if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});</script>
 </body>
 </html>

@@ -68,7 +68,7 @@ function renderBotList() {
     return;
   }
   list.innerHTML = bots.map(bot => `
-    <div class="bot-item ${bot.id === selectedBotId ? 'active' : ''}" onclick="selectBot('${bot.id}')">
+    <div class="bot-item ${bot.id === selectedBotId ? 'active' : ''}" onclick="selectBot('${bot.id || bot._id}')">
       <div class="bot-item-name">${esc(bot.name)}</div>
       <div class="bot-item-host">${esc(bot.host)}:${bot.port}</div>
       <div class="bot-item-status">
@@ -159,6 +159,11 @@ function selectBot(id) {
 
   // Connection
   document.getElementById('liveAutoRejoin').checked    = bot.autoRejoin    ?? false;
+  document.getElementById('liveScheduleEnabled').checked  = bot.schedule?.enabled  ?? false;
+  document.getElementById('liveScheduleStart').value      = bot.schedule?.startTime ?? '08:00';
+  document.getElementById('liveScheduleStop').value       = bot.schedule?.stopTime  ?? '23:00';
+  document.getElementById('liveBotAvatar').value          = bot.avatar ?? '🤖';
+  document.getElementById('liveBotColor').value           = bot.color  ?? '#00e5ff';
   document.getElementById('liveAutoRespawn').checked   = bot.autoRespawn   ?? false;
   document.getElementById('liveDiscordWebhook').value  = bot.discordWebhook ?? '';
   renderJoinCmds(bot.onJoinCommands || []);
@@ -202,7 +207,7 @@ function updateCycleBadge() {
 async function loadBots() {
   const data = await api('GET', '/api/bots');
   if (!data) return;
-  bots = data;
+  bots = data.map(b => ({...b, id: b.id || b._id?.toString()}));
   renderBotList();
   // Re-select the current bot if it still exists (handles page reload)
   if (selectedBotId && bots.find(b => b.id === selectedBotId)) {
@@ -268,7 +273,7 @@ async function saveLiveConfig(immediate = false) {
 
     const updated = await api('PUT', `/api/bots/${selectedBotId}`, {
       ...bot, antiAfk,
-      autoRejoin, autoLeave, onJoinCommand, onJoinCommands, autoRespawn, discordWebhook,
+      autoRejoin, autoLeave, onJoinCommand, onJoinCommands, autoRespawn, discordWebhook, schedule, avatar, color,
       cycleEnabled, cycleLeaveEvery, cycleRejoinAfter
     });
     if (updated) {
@@ -486,6 +491,7 @@ function logout() {
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
 (async () => {
+  applyStoredTheme();
   connectSocket();
   await loadBots();
 
@@ -585,4 +591,201 @@ async function testWebhook() {
   const r = await api('POST', `/api/bots/${selectedBotId}/webhook-test`);
   if (r?.success) alert('✅ Webhook test sent! Check your Discord channel.');
   else alert('❌ Failed: ' + (r?.error || 'Unknown error — is the webhook URL saved?'));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ─── THEME SYSTEM ────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme || 'dark');
+  localStorage.setItem('sleepyafk_theme', theme);
+}
+
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme') || 'dark';
+  const next = { dark:'dim', dim:'light', light:'dark' }[current] || 'dark';
+  setTheme(next);
+}
+
+async function setTheme(theme) {
+  applyTheme(theme);
+  await api('PUT', '/api/me/theme', { theme });
+}
+
+// Load theme on start
+(async () => {
+  const saved = localStorage.getItem('sleepyafk_theme');
+  if (saved) { applyTheme(saved); return; }
+  const me = await api('GET', '/api/me');
+  if (me?.theme) applyTheme(me.theme);
+})();
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ─── ACCOUNT MODAL ────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function openAccountModal() {
+  const uname = localStorage.getItem('afk_username') || '—';
+  document.getElementById('accountUsername').textContent = uname;
+  const link = `${location.origin}/status/${uname}`;
+  document.getElementById('statusLinkDisplay').textContent = link;
+  document.getElementById('currPw').value = '';
+  document.getElementById('newPw').value  = '';
+  document.getElementById('confPw').value = '';
+  clearAccountAlert();
+  document.getElementById('accountModal').classList.add('open');
+}
+
+function clearAccountAlert() { const e=document.getElementById('accountAlert'); e.className='modal-alert'; e.textContent=''; }
+function showAccountAlert(msg,type){ const e=document.getElementById('accountAlert'); e.className='modal-alert '+type; e.textContent=msg; }
+
+async function changePassword() {
+  const curr = document.getElementById('currPw').value;
+  const nw   = document.getElementById('newPw').value;
+  const conf = document.getElementById('confPw').value;
+  if (!nw) return showAccountAlert('New password required', 'error');
+  if (nw.length < 6) return showAccountAlert('New password min 6 chars', 'error');
+  if (nw !== conf) return showAccountAlert('Passwords do not match', 'error');
+  const r = await api('POST', '/api/change-password', { currentPassword:curr, newPassword:nw });
+  if (r?.success) showAccountAlert('Password changed successfully!', 'success');
+  else showAccountAlert(r?.error || 'Failed', 'error');
+}
+
+function copyStatusLink() {
+  const uname = localStorage.getItem('afk_username') || '';
+  const link  = `${location.origin}/status/${uname}`;
+  navigator.clipboard.writeText(link).then(() => alert(`Status link copied!\n${link}`));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ─── GLOBAL CHAT ──────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function initGlobalChat() {
+  socket.on('global:chat', ({ botId, botName, color, entry }) => {
+    appendGlobalLine(botName, color, entry);
+  });
+  socket.on('global:history', (items) => {
+    items.forEach(({ botName, color, entry }) => appendGlobalLine(botName, color, entry));
+  });
+  // Load history on connect
+  api('GET', '/api/global-chat').then(data => {
+    if (data) data.forEach(({ botName, color, entry }) => appendGlobalLine(botName, color, entry));
+  });
+}
+
+function appendGlobalLine(botName, color, entry) {
+  const out = document.getElementById('globalChatOutput');
+  if (!out) return;
+  const empty = out.querySelector('.log-entry');
+  const div = document.createElement('div');
+  div.className = 'log-entry chat';
+  const t = new Date(entry.time);
+  const ts = t.toLocaleTimeString('en-US',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  div.innerHTML = `<span class="log-time">${ts}</span><span style="color:${color||'var(--accent)'};font-size:10px;flex-shrink:0;font-family:'Share Tech Mono',monospace;margin-right:6px;">[${esc(botName)}]</span><span class="log-msg">${esc(entry.message)}</span>`;
+  out.appendChild(div);
+  out.scrollTop = out.scrollHeight;
+}
+
+function clearGlobalChat() {
+  const out = document.getElementById('globalChatOutput');
+  if (out) out.innerHTML = '';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ─── BOT CLONING & IMPORT/EXPORT ─────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+async function cloneBot() {
+  if (!selectedBotId) return;
+  const bot = bots.find(b => b.id === selectedBotId);
+  if (!confirm(`Clone "${bot?.name}"?`)) return;
+  const r = await api('POST', `/api/bots/${selectedBotId}/clone`);
+  if (r?.id) { await loadBots(); selectBot(r.id); }
+}
+
+async function exportBot() {
+  if (!selectedBotId) return;
+  window.open(`/api/bots/${selectedBotId}/export?token=${localStorage.getItem('afk_token')}`, '_blank');
+  // Fallback: fetch and download
+  const bot = bots.find(b=>b.id===selectedBotId);
+  const r = await fetch(`/api/bots/${selectedBotId}/export`, { headers:{'Authorization':'Bearer '+localStorage.getItem('afk_token')} });
+  const data = await r.json();
+  const blob = new Blob([JSON.stringify(data,null,2)], { type:'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${(bot?.name||'bot').replace(/[^a-z0-9]/gi,'_')}.json`;
+  a.click();
+}
+
+async function importBot() {
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = '.json';
+  input.onchange = async (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    const text = await file.text();
+    try {
+      const cfg = JSON.parse(text);
+      const r = await api('POST', '/api/bots/import', cfg);
+      if (r?.id) { await loadBots(); selectBot(r.id); alert('Bot imported!'); }
+      else alert('Import failed: ' + (r?.error || 'Unknown error'));
+    } catch { alert('Invalid JSON file'); }
+  };
+  input.click();
+}
+
+// Init global chat when socket connects
+if (typeof socket !== 'undefined') initGlobalChat();
+else window.addEventListener('DOMContentLoaded', () => { if(typeof socket!=='undefined') initGlobalChat(); });
+// ─── Theme ───────────────────────────────────────────────────────────────────
+function applyStoredTheme() {
+  const t = localStorage.getItem('afk_theme') || 'dark';
+  const themes = {
+    dark:  {bg:'#050b0e',surface:'#0c1a1f',surface2:'#0f2028',surface3:'#122430',text:'#c8e6ef',border:'#1a3a44'},
+    dim:   {bg:'#080e11',surface:'#0f1f26',surface2:'#12252d',surface3:'#162b34',text:'#d4eaf2',border:'#1a3a44'},
+    light: {bg:'#f0f5f7',surface:'#ffffff',surface2:'#e8f2f7',surface3:'#dde9ef',text:'#1a3a4a',border:'#c0d8e0'}
+  };
+  const th = themes[t] || themes.dark;
+  const r = document.documentElement.style;
+  Object.entries({bg:th.bg,surface:th.surface,'surface2':th.surface2,'surface3':th.surface3,text:th.text,border:th.border}).forEach(([k,v])=>r.setProperty('--'+k,v));
+}
+
+// ─── Clone Bot ────────────────────────────────────────────────────────────────
+async function cloneBot() {
+  if (!selectedBotId) return;
+  const r = await api('POST', `/api/bots/${selectedBotId}/clone`);
+  if (r?.error) return alert('Clone failed: ' + r.error);
+  await loadBots();
+  selectBot(r.id || r._id);
+  alert('✅ Bot cloned as "' + r.name + '"');
+}
+
+// ─── Export / Import ──────────────────────────────────────────────────────────
+async function exportBot() {
+  if (!selectedBotId) return;
+  const r = await api('GET', `/api/bots/${selectedBotId}/export`);
+  if (!r) return;
+  const blob = new Blob([JSON.stringify(r, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${(r.name||'bot').replace(/[^a-z0-9]/gi,'_')}_config.json`;
+  a.click();
+}
+
+function importBot() {
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = '.json';
+  input.onchange = async e => {
+    const file = e.target.files[0]; if (!file) return;
+    const text = await file.text();
+    try {
+      const cfg = JSON.parse(text);
+      const r = await api('POST', '/api/bots/import', cfg);
+      if (r?.error) return alert('Import failed: ' + r.error);
+      await loadBots(); selectBot(r.id || r._id);
+      alert('✅ Bot imported: ' + r.name);
+    } catch { alert('Invalid JSON file'); }
+  };
+  input.click();
 }

@@ -1,541 +1,152 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SleepyAfk — Minecraft Bot Manager</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&family=Orbitron:wght@700;900&display=swap" rel="stylesheet" />
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>SleepyAfk — Login</title>
+  <link rel="manifest" href="/manifest.json"/>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&family=Orbitron:wght@700;900&display=swap" rel="stylesheet"/>
   <style>
-    :root {
-      --bg: #050b0e;
-      --surface: #0c1a1f;
-      --surface2: #122028;
-      --border: #1a3a44;
-      --accent: #00e5ff;
-      --accent2: #00ff88;
-      --accent3: #ff6b35;
-      --text: #c8e6ef;
-      --text-dim: #4a7a8a;
-      --error: #ff4757;
-      --success: #00ff88;
-      --glow: 0 0 20px rgba(0, 229, 255, 0.15);
-    }
-
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-
-    body {
-      background: var(--bg);
-      font-family: 'Rajdhani', sans-serif;
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      overflow: hidden;
-      position: relative;
-    }
-
-    /* Animated grid bg */
-    body::before {
-      content: '';
-      position: fixed;
-      inset: 0;
-      background-image:
-        linear-gradient(rgba(0,229,255,0.03) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(0,229,255,0.03) 1px, transparent 1px);
-      background-size: 40px 40px;
-      animation: gridMove 20s linear infinite;
-      pointer-events: none;
-    }
-
-    body::after {
-      content: '';
-      position: fixed;
-      inset: 0;
-      background: radial-gradient(ellipse 80% 60% at 50% 50%, rgba(0,229,255,0.04) 0%, transparent 70%);
-      pointer-events: none;
-    }
-
-    @keyframes gridMove {
-      0% { transform: translateY(0); }
-      100% { transform: translateY(40px); }
-    }
-
-    /* Floating particles */
-    .particles {
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      overflow: hidden;
-    }
-
-    .particle {
-      position: absolute;
-      width: 2px;
-      height: 2px;
-      border-radius: 50%;
-      animation: float linear infinite;
-    }
-
-    @keyframes float {
-      0% { transform: translateY(100vh) translateX(0); opacity: 0; }
-      10% { opacity: 1; }
-      90% { opacity: 1; }
-      100% { transform: translateY(-10px) translateX(50px); opacity: 0; }
-    }
-
-    .container {
-      position: relative;
-      z-index: 10;
-      width: 440px;
-      animation: fadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-    }
-
-    @keyframes fadeUp {
-      from { opacity: 0; transform: translateY(30px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    .logo {
-      text-align: center;
-      margin-bottom: 36px;
-    }
-
-    .logo-icon {
-      width: 64px;
-      height: 64px;
-      margin: 0 auto 16px;
-      position: relative;
-    }
-
-    .logo-icon svg {
-      width: 100%;
-      height: 100%;
-      filter: drop-shadow(0 0 12px rgba(0,229,255,0.6));
-    }
-
-    .logo h1 {
-      font-family: 'Orbitron', monospace;
-      font-size: 32px;
-      font-weight: 900;
-      letter-spacing: 4px;
-      color: var(--accent);
-      text-shadow: 0 0 30px rgba(0,229,255,0.4);
-    }
-
-    .logo p {
-      font-family: 'Share Tech Mono', monospace;
-      font-size: 11px;
-      color: var(--text-dim);
-      letter-spacing: 3px;
-      text-transform: uppercase;
-      margin-top: 6px;
-    }
-
-    .card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .card::before {
-      content: '';
-      position: absolute;
-      top: 0; left: 0; right: 0;
-      height: 1px;
-      background: linear-gradient(90deg, transparent, var(--accent), transparent);
-    }
-
-    .tab-bar {
-      display: flex;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .tab {
-      flex: 1;
-      padding: 16px;
-      background: none;
-      border: none;
-      font-family: 'Orbitron', monospace;
-      font-size: 11px;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      color: var(--text-dim);
-      cursor: pointer;
-      transition: all 0.2s;
-      position: relative;
-    }
-
-    .tab.active {
-      color: var(--accent);
-    }
-
-    .tab.active::after {
-      content: '';
-      position: absolute;
-      bottom: -1px; left: 0; right: 0;
-      height: 2px;
-      background: var(--accent);
-      box-shadow: 0 0 10px var(--accent);
-    }
-
-    .tab:hover:not(.active) {
-      color: var(--text);
-      background: rgba(0,229,255,0.03);
-    }
-
-    .form-panel {
-      padding: 32px;
-      display: none;
-    }
-
-    .form-panel.active {
-      display: block;
-    }
-
-    .field {
-      margin-bottom: 20px;
-    }
-
-    .field label {
-      display: block;
-      font-family: 'Share Tech Mono', monospace;
-      font-size: 11px;
-      color: var(--text-dim);
-      text-transform: uppercase;
-      letter-spacing: 2px;
-      margin-bottom: 8px;
-    }
-
-    .field input {
-      width: 100%;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 3px;
-      padding: 12px 16px;
-      font-family: 'Share Tech Mono', monospace;
-      font-size: 14px;
-      color: var(--text);
-      outline: none;
-      transition: all 0.2s;
-    }
-
-    .field input:focus {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 2px rgba(0,229,255,0.1), 0 0 20px rgba(0,229,255,0.05);
-    }
-
-    .field input::placeholder {
-      color: var(--text-dim);
-    }
-
-    .btn-primary {
-      width: 100%;
-      padding: 14px;
-      background: transparent;
-      border: 1px solid var(--accent);
-      border-radius: 3px;
-      font-family: 'Orbitron', monospace;
-      font-size: 12px;
-      font-weight: 700;
-      letter-spacing: 3px;
-      text-transform: uppercase;
-      color: var(--accent);
-      cursor: pointer;
-      position: relative;
-      overflow: hidden;
-      transition: all 0.3s;
-    }
-
-    .btn-primary::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: var(--accent);
-      transform: translateX(-100%);
-      transition: transform 0.3s;
-    }
-
-    .btn-primary:hover::before {
-      transform: translateX(0);
-    }
-
-    .btn-primary:hover {
-      color: var(--bg);
-      box-shadow: 0 0 30px rgba(0,229,255,0.3);
-    }
-
-    .btn-primary span {
-      position: relative;
-      z-index: 1;
-    }
-
-    .alert {
-      padding: 12px 16px;
-      border-radius: 3px;
-      font-family: 'Share Tech Mono', monospace;
-      font-size: 12px;
-      margin-bottom: 20px;
-      display: none;
-    }
-
-    .alert.error {
-      background: rgba(255, 71, 87, 0.1);
-      border: 1px solid rgba(255, 71, 87, 0.3);
-      color: var(--error);
-      display: block;
-    }
-
-    .alert.success {
-      background: rgba(0, 255, 136, 0.1);
-      border: 1px solid rgba(0, 255, 136, 0.3);
-      color: var(--success);
-      display: block;
-    }
-
-    .corner-decoration {
-      position: absolute;
-      width: 12px;
-      height: 12px;
-      border-color: var(--accent);
-      border-style: solid;
-      opacity: 0.5;
-    }
-
-    .corner-decoration.tl { top: 8px; left: 8px; border-width: 1px 0 0 1px; }
-    .corner-decoration.tr { top: 8px; right: 8px; border-width: 1px 1px 0 0; }
-    .corner-decoration.bl { bottom: 8px; left: 8px; border-width: 0 0 1px 1px; }
-    .corner-decoration.br { bottom: 8px; right: 8px; border-width: 0 1px 1px 0; }
-
-    .status-bar {
-      margin-top: 16px;
-      text-align: center;
-      font-family: 'Share Tech Mono', monospace;
-      font-size: 10px;
-      color: var(--text-dim);
-      letter-spacing: 1px;
-    }
-
-    .status-dot {
-      display: inline-block;
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: var(--accent2);
-      margin-right: 6px;
-      animation: pulse 2s ease-in-out infinite;
-    }
-
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.3; }
-    }
-
-    .loading-overlay {
-      position: fixed;
-      inset: 0;
-      background: var(--bg);
-      z-index: 100;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: opacity 0.4s;
-    }
-
-    .loading-overlay.hidden {
-      opacity: 0;
-      pointer-events: none;
-    }
-
-    .spinner {
-      width: 40px;
-      height: 40px;
-      border: 2px solid var(--border);
-      border-top-color: var(--accent);
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-    }
-
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
+    :root{--bg:#050b0e;--surface:#0c1a1f;--surface2:#122028;--border:#1a3a44;--accent:#00e5ff;--accent2:#00ff88;--text:#c8e6ef;--text-dim:#4a7a8a;--error:#ff4757;--success:#00ff88;}
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{background:var(--bg);font-family:'Rajdhani',sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;}
+    body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,229,255,0.03)1px,transparent 1px),linear-gradient(90deg,rgba(0,229,255,0.03)1px,transparent 1px);background-size:40px 40px;animation:gridMove 20s linear infinite;pointer-events:none;}
+    @keyframes gridMove{0%{transform:translateY(0)}100%{transform:translateY(40px)}}
+    .particles{position:fixed;inset:0;pointer-events:none;overflow:hidden;}
+    .particle{position:absolute;width:2px;height:2px;border-radius:50%;animation:float linear infinite;}
+    @keyframes float{0%{transform:translateY(100vh);opacity:0}10%{opacity:1}90%{opacity:1}100%{transform:translateY(-10px) translateX(50px);opacity:0}}
+    .container{position:relative;z-index:10;width:440px;animation:fadeUp 0.6s cubic-bezier(0.16,1,0.3,1) forwards;}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
+    .logo{text-align:center;margin-bottom:32px;}
+    .logo h1{font-family:'Orbitron',monospace;font-size:32px;font-weight:900;letter-spacing:4px;color:var(--accent);text-shadow:0 0 30px rgba(0,229,255,0.4);}
+    .logo p{font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-dim);letter-spacing:3px;text-transform:uppercase;margin-top:6px;}
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:4px;position:relative;overflow:hidden;}
+    .card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--accent),transparent);}
+    .tab-bar{display:flex;border-bottom:1px solid var(--border);}
+    .tab{flex:1;padding:16px;background:none;border:none;font-family:'Orbitron',monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--text-dim);cursor:pointer;transition:all 0.2s;position:relative;}
+    .tab.active{color:var(--accent);}
+    .tab.active::after{content:'';position:absolute;bottom:-1px;left:0;right:0;height:2px;background:var(--accent);box-shadow:0 0 10px var(--accent);}
+    .tab:hover:not(.active){color:var(--text);background:rgba(0,229,255,0.03);}
+    .form-panel{padding:28px 32px;display:none;}
+    .form-panel.active{display:block;}
+    .field{margin-bottom:18px;}
+    .field label{display:block;font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:2px;margin-bottom:8px;}
+    .field input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:3px;padding:11px 14px;font-family:'Share Tech Mono',monospace;font-size:14px;color:var(--text);outline:none;transition:all 0.2s;}
+    .field input:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(0,229,255,0.1);}
+    .field input::placeholder{color:var(--text-dim);}
+    .btn-primary{width:100%;padding:13px;background:transparent;border:1px solid var(--accent);border-radius:3px;font-family:'Orbitron',monospace;font-size:12px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--accent);cursor:pointer;position:relative;overflow:hidden;transition:all 0.3s;margin-bottom:12px;}
+    .btn-primary::before{content:'';position:absolute;inset:0;background:var(--accent);transform:translateX(-100%);transition:transform 0.3s;}
+    .btn-primary:hover::before{transform:translateX(0);}
+    .btn-primary:hover{color:var(--bg);box-shadow:0 0 30px rgba(0,229,255,0.3);}
+    .btn-primary span{position:relative;z-index:1;}
+    .divider{display:flex;align-items:center;gap:12px;margin:4px 0 12px;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-dim);letter-spacing:2px;}
+    .divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--border);}
+    .btn-google{width:100%;padding:12px;background:transparent;border:1px solid var(--border);border-radius:3px;font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--text-dim);cursor:pointer;transition:all 0.2s;display:flex;align-items:center;justify-content:center;gap:10px;letter-spacing:1px;}
+    .btn-google:hover{border-color:#4285f4;color:#4285f4;background:rgba(66,133,244,0.05);}
+    .google-icon{width:16px;height:16px;flex-shrink:0;}
+    .alert{padding:10px 14px;border-radius:3px;font-family:'Share Tech Mono',monospace;font-size:12px;margin-bottom:16px;display:none;}
+    .alert.error{background:rgba(255,71,87,0.1);border:1px solid rgba(255,71,87,0.3);color:var(--error);display:block;}
+    .alert.success{background:rgba(0,255,136,0.1);border:1px solid rgba(0,255,136,0.3);color:var(--success);display:block;}
+    .status-bar{margin-top:14px;text-align:center;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-dim);letter-spacing:1px;}
+    .status-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent2);margin-right:6px;animation:pulse 2s ease-in-out infinite;}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
   </style>
 </head>
 <body>
-
-<div class="loading-overlay" id="loadingOverlay">
-  <div class="spinner"></div>
-</div>
-
 <div class="particles" id="particles"></div>
-
 <div class="container">
   <div class="logo">
-    <div class="logo-icon">
-      <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect x="8" y="8" width="48" height="48" stroke="#00e5ff" stroke-width="1.5" fill="none"/>
-        <rect x="16" y="16" width="10" height="10" fill="#00e5ff" opacity="0.8"/>
-        <rect x="38" y="16" width="10" height="10" fill="#00e5ff" opacity="0.8"/>
-        <rect x="20" y="38" width="24" height="4" fill="#00ff88" opacity="0.8"/>
-        <rect x="24" y="26" width="16" height="8" fill="#00e5ff" opacity="0.3"/>
-        <line x1="4" y1="32" x2="8" y2="32" stroke="#00e5ff" stroke-width="1" opacity="0.5"/>
-        <line x1="56" y1="32" x2="60" y2="32" stroke="#00e5ff" stroke-width="1" opacity="0.5"/>
-        <line x1="32" y1="4" x2="32" y2="8" stroke="#00e5ff" stroke-width="1" opacity="0.5"/>
-        <line x1="32" y1="56" x2="32" y2="60" stroke="#00e5ff" stroke-width="1" opacity="0.5"/>
-      </svg>
-    </div>
     <h1>SleepyAfk</h1>
     <p>Minecraft Bot Controller</p>
   </div>
-
   <div class="card">
-    <div class="corner-decoration tl"></div>
-    <div class="corner-decoration tr"></div>
-    <div class="corner-decoration bl"></div>
-    <div class="corner-decoration br"></div>
-
     <div class="tab-bar">
-      <button class="tab active" onclick="switchTab('login')">Login</button>
-      <button class="tab" onclick="switchTab('register')">Register</button>
+      <button class="tab active" onclick="switchTab('login',this)">Login</button>
+      <button class="tab" onclick="switchTab('register',this)">Register</button>
     </div>
-
-    <!-- Login Panel -->
     <div class="form-panel active" id="loginPanel">
       <div class="alert" id="loginAlert"></div>
-      <div class="field">
-        <label>Username</label>
-        <input type="text" id="loginUsername" placeholder="enter username" autocomplete="username" />
-      </div>
-      <div class="field">
-        <label>Password</label>
-        <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password" />
-      </div>
-      <button class="btn-primary" onclick="doLogin()">
-        <span>Access System</span>
+      <div class="field"><label>Username</label><input id="loginUsername" type="text" placeholder="enter username" autocomplete="username"/></div>
+      <div class="field"><label>Password</label><input id="loginPassword" type="password" placeholder="••••••••" autocomplete="current-password"/></div>
+      <div id="twoFactorWrap" style="display:none" class="field"><label>2FA Code</label><input id="twoFactorCode" type="text" placeholder="000000" maxlength="6"/></div>
+      <button class="btn-primary" onclick="doLogin()"><span>Access System</span></button>
+      <div class="divider">OR</div>
+      <button class="btn-google" onclick="location.href='/auth/google'">
+        <svg class="google-icon" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+        Continue with Google
       </button>
     </div>
-
-    <!-- Register Panel -->
     <div class="form-panel" id="registerPanel">
       <div class="alert" id="registerAlert"></div>
-      <div class="field">
-        <label>Username</label>
-        <input type="text" id="regUsername" placeholder="choose username (min 3 chars)" autocomplete="username" />
-      </div>
-      <div class="field">
-        <label>Password</label>
-        <input type="password" id="regPassword" placeholder="choose password (min 6 chars)" autocomplete="new-password" />
-      </div>
-      <div class="field">
-        <label>Confirm Password</label>
-        <input type="password" id="regConfirm" placeholder="repeat password" autocomplete="new-password" />
-      </div>
-      <button class="btn-primary" onclick="doRegister()">
-        <span>Create Account</span>
+      <div class="field"><label>Username</label><input id="regUsername" type="text" placeholder="choose username (min 3)" autocomplete="username"/></div>
+      <div class="field"><label>Password</label><input id="regPassword" type="password" placeholder="choose password (min 6)" autocomplete="new-password"/></div>
+      <div class="field"><label>Confirm Password</label><input id="regConfirm" type="password" placeholder="repeat password" autocomplete="new-password"/></div>
+      <button class="btn-primary" onclick="doRegister()"><span>Create Account</span></button>
+      <div class="divider">OR</div>
+      <button class="btn-google" onclick="location.href='/auth/google'">
+        <svg class="google-icon" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+        Sign up with Google
       </button>
     </div>
   </div>
-
-  <div class="status-bar">
-    <span class="status-dot"></span>
-    System online — v1.0.0
-  </div>
+  <div class="status-bar"><span class="status-dot"></span>SleepyAfk v5.0 — MongoDB Powered</div>
 </div>
-
 <script>
-  // Particles
-  const pc = document.getElementById('particles');
-  const colors = ['#00e5ff', '#00ff88', '#ff6b35'];
-  for (let i = 0; i < 30; i++) {
-    const p = document.createElement('div');
-    p.className = 'particle';
-    p.style.left = Math.random() * 100 + 'vw';
-    p.style.background = colors[Math.floor(Math.random() * colors.length)];
-    p.style.animationDuration = (8 + Math.random() * 15) + 's';
-    p.style.animationDelay = (Math.random() * 10) + 's';
-    p.style.opacity = Math.random() * 0.7;
-    pc.appendChild(p);
-  }
+const pc=document.getElementById('particles');
+const colors=['#00e5ff','#00ff88','#ff6b35'];
+for(let i=0;i<25;i++){const p=document.createElement('div');p.className='particle';p.style.left=Math.random()*100+'vw';p.style.background=colors[Math.floor(Math.random()*colors.length)];p.style.animationDuration=(8+Math.random()*15)+'s';p.style.animationDelay=(Math.random()*10)+'s';p.style.opacity=Math.random()*0.6;pc.appendChild(p);}
 
-  // Check if already logged in
-  window.addEventListener('DOMContentLoaded', () => {
-    const token = localStorage.getItem('afk_token');
-    if (token) {
-      window.location.href = '/home.html';
-    } else {
-      document.getElementById('loadingOverlay').classList.add('hidden');
+window.addEventListener('DOMContentLoaded',()=>{
+  const token=localStorage.getItem('afk_token');
+  if(token) location.href='/home.html';
+});
+
+function switchTab(tab,btn){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.form-panel').forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById(tab+'Panel').classList.add('active');
+}
+function showAlert(id,msg,type){const el=document.getElementById(id);el.className='alert '+type;el.textContent=msg;}
+
+async function doLogin(){
+  const username=document.getElementById('loginUsername').value.trim();
+  const password=document.getElementById('loginPassword').value;
+  const twoFactorCode=document.getElementById('twoFactorCode').value.trim();
+  if(!username||!password)return showAlert('loginAlert','All fields required','error');
+  try{
+    const res=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,password,twoFactorCode:twoFactorCode||undefined})});
+    const data=await res.json();
+    if(!res.ok){
+      if(data.twoFactorRequired){document.getElementById('twoFactorWrap').style.display='';showAlert('loginAlert','Enter your 2FA code below','error');return;}
+      return showAlert('loginAlert',data.error,'error');
     }
-  });
+    localStorage.setItem('afk_token',data.token);
+    localStorage.setItem('afk_username',data.username);
+    if(data.theme)localStorage.setItem('afk_theme',data.theme);
+    showAlert('loginAlert','Access granted! Redirecting...','success');
+    setTimeout(()=>location.href='/home.html',700);
+  }catch{showAlert('loginAlert','Connection error','error');}
+}
 
-  function switchTab(tab) {
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.form-panel').forEach(p => p.classList.remove('active'));
-    event.target.classList.add('active');
-    document.getElementById(tab + 'Panel').classList.add('active');
-  }
+async function doRegister(){
+  const username=document.getElementById('regUsername').value.trim();
+  const password=document.getElementById('regPassword').value;
+  const confirm=document.getElementById('regConfirm').value;
+  if(!username||!password||!confirm)return showAlert('registerAlert','All fields required','error');
+  if(password!==confirm)return showAlert('registerAlert','Passwords do not match','error');
+  try{
+    const res=await fetch('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,password})});
+    const data=await res.json();
+    if(!res.ok)return showAlert('registerAlert',data.error,'error');
+    localStorage.setItem('afk_token',data.token);
+    localStorage.setItem('afk_username',data.username);
+    showAlert('registerAlert','Account created! Redirecting...','success');
+    setTimeout(()=>location.href='/home.html',700);
+  }catch{showAlert('registerAlert','Connection error','error');}
+}
 
-  function showAlert(id, msg, type) {
-    const el = document.getElementById(id);
-    el.className = 'alert ' + type;
-    el.textContent = msg;
-  }
-
-  async function doLogin() {
-    const username = document.getElementById('loginUsername').value.trim();
-    const password = document.getElementById('loginPassword').value;
-    if (!username || !password) return showAlert('loginAlert', 'All fields required', 'error');
-
-    try {
-      const res = await fetch('/api/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
-      });
-      const data = await res.json();
-      if (!res.ok) return showAlert('loginAlert', data.error, 'error');
-      localStorage.setItem('afk_token', data.token);
-      localStorage.setItem('afk_username', data.username);
-      showAlert('loginAlert', 'Access granted. Redirecting...', 'success');
-      setTimeout(() => window.location.href = '/home.html', 800);
-    } catch {
-      showAlert('loginAlert', 'Connection error', 'error');
-    }
-  }
-
-  async function doRegister() {
-    const username = document.getElementById('regUsername').value.trim();
-    const password = document.getElementById('regPassword').value;
-    const confirm = document.getElementById('regConfirm').value;
-    if (!username || !password || !confirm) return showAlert('registerAlert', 'All fields required', 'error');
-    if (password !== confirm) return showAlert('registerAlert', 'Passwords do not match', 'error');
-
-    try {
-      const res = await fetch('/api/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
-      });
-      const data = await res.json();
-      if (!res.ok) return showAlert('registerAlert', data.error, 'error');
-      localStorage.setItem('afk_token', data.token);
-      localStorage.setItem('afk_username', data.username);
-      showAlert('registerAlert', 'Account created! Redirecting...', 'success');
-      setTimeout(() => window.location.href = '/home.html', 800);
-    } catch {
-      showAlert('registerAlert', 'Connection error', 'error');
-    }
-  }
-
-  // Enter key support
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      const panel = document.querySelector('.form-panel.active');
-      if (panel.id === 'loginPanel') doLogin();
-      else doRegister();
-    }
-  });
+document.addEventListener('keydown',e=>{if(e.key==='Enter'){const panel=document.querySelector('.form-panel.active');if(panel.id==='loginPanel')doLogin();else doRegister();}});
 </script>
 </body>
 </html>

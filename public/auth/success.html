@@ -1,0 +1,10 @@
+<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>SleepyAfk — Signing in</title>
+<style>body{background:#050b0e;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;font-family:monospace;color:#00e5ff;text-align:center;}</style>
+</head><body>
+<div><div style="font-size:40px;margin-bottom:16px">✅</div><div style="letter-spacing:3px;font-size:14px">SIGNING IN...</div></div>
+<script>
+const p=new URLSearchParams(location.search);
+const token=p.get('token'),username=p.get('username');
+if(token&&username){localStorage.setItem('afk_token',token);localStorage.setItem('afk_username',decodeURIComponent(username));location.href='/home.html';}
+else{location.href='/';}
+</script></body></html>

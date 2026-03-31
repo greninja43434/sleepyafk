@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>SleepyAfk — Account</title>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&family=Orbitron:wght@700;900&display=swap" rel="stylesheet"/>
+  <style>
+    :root{--bg:#050b0e;--surface:#0c1a1f;--surface2:#0f2028;--surface3:#122430;--border:#1a3a44;--accent:#00e5ff;--accent2:#00ff88;--text:#c8e6ef;--text-dim:#4a7a8a;--text-muted:#2a5060;--error:#ff4757;--warn:#ffa502;--success:#00ff88;--purple:#c77dff;}
+    *{margin:0;padding:0;box-sizing:border-box;}html,body{height:100%;overflow:hidden;}
+    body{background:var(--bg);font-family:'Rajdhani',sans-serif;color:var(--text);display:flex;flex-direction:column;}
+    body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,229,255,0.02)1px,transparent 1px),linear-gradient(90deg,rgba(0,229,255,0.02)1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0;}
+    ::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:var(--border);}
+    .topbar{position:relative;z-index:10;height:52px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:0;flex-shrink:0;}
+    .topbar::after{content:'';position:absolute;bottom:-1px;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--accent),transparent);opacity:0.4;}
+    .brand{font-family:'Orbitron',monospace;font-size:15px;font-weight:900;letter-spacing:3px;color:var(--accent);}
+    .nav{display:flex;align-items:center;gap:2px;margin-left:24px;}
+    .nav-btn{padding:8px 16px;background:transparent;border:none;font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--text-dim);cursor:pointer;transition:all 0.2s;border-radius:2px;position:relative;}
+    .nav-btn:hover{color:var(--text);}
+    .nav-btn.active{color:var(--purple);}
+    .nav-btn.active::after{content:'';position:absolute;bottom:0;left:8px;right:8px;height:2px;background:var(--purple);box-shadow:0 0 8px var(--purple);}
+    .topbar-right{margin-left:auto;display:flex;align-items:center;gap:12px;}
+    .topbar-user{font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-dim);}
+    .topbar-user span{color:var(--accent2);}
+    .btn-sm{padding:6px 14px;background:transparent;border:1px solid var(--border);border-radius:3px;font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-dim);cursor:pointer;transition:all 0.2s;}
+    .btn-sm:hover{border-color:var(--accent);color:var(--accent);}
+    .btn-sm.danger:hover{border-color:var(--error);color:var(--error);}
+    .page{position:relative;z-index:1;flex:1;overflow-y:auto;padding:24px;display:flex;flex-direction:column;gap:20px;max-width:720px;margin:0 auto;width:100%;}
+    .page-title{font-family:'Orbitron',monospace;font-size:13px;letter-spacing:3px;color:var(--text-dim);text-transform:uppercase;padding-bottom:16px;border-bottom:1px solid var(--border);}
+    .section{background:var(--surface);border:1px solid var(--border);border-radius:4px;overflow:hidden;}
+    .section-header{padding:14px 20px;border-bottom:1px solid var(--border);font-family:'Orbitron',monospace;font-size:11px;letter-spacing:2px;color:var(--text);text-transform:uppercase;}
+    .section-body{padding:20px;display:flex;flex-direction:column;gap:14px;}
+    .field{display:flex;flex-direction:column;gap:6px;}
+    .field label{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-dim);letter-spacing:2px;text-transform:uppercase;}
+    .field input{background:var(--surface2);border:1px solid var(--border);border-radius:3px;padding:10px 14px;font-family:'Share Tech Mono',monospace;font-size:13px;color:var(--text);outline:none;transition:border-color 0.2s;width:100%;}
+    .field input:focus{border-color:var(--accent);}
+    .field input::placeholder{color:var(--text-muted);}
+    .btn-action{padding:10px 20px;background:transparent;border:1px solid var(--accent);border-radius:3px;font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--accent);cursor:pointer;transition:all 0.2s;letter-spacing:1px;}
+    .btn-action:hover{background:var(--accent);color:var(--bg);}
+    .btn-action.green{border-color:var(--accent2);color:var(--accent2);}
+    .btn-action.green:hover{background:var(--accent2);color:var(--bg);}
+    .btn-action.red{border-color:var(--error);color:var(--error);}
+    .btn-action.red:hover{background:var(--error);color:var(--bg);}
+    .btn-action.purple{border-color:var(--purple);color:var(--purple);}
+    .btn-action.purple:hover{background:var(--purple);color:var(--bg);}
+    .alert-box{padding:10px 14px;border-radius:3px;font-family:'Share Tech Mono',monospace;font-size:11px;display:none;}
+    .alert-box.error{background:rgba(255,71,87,0.1);border:1px solid rgba(255,71,87,0.3);color:var(--error);display:block;}
+    .alert-box.success{background:rgba(0,255,136,0.1);border:1px solid rgba(0,255,136,0.2);color:var(--success);display:block;}
+    .hint{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-muted);line-height:1.7;}
+    .theme-row{display:flex;gap:10px;}
+    .theme-btn{flex:1;padding:10px;background:transparent;border:1px solid var(--border);border-radius:3px;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-dim);cursor:pointer;transition:all 0.2s;letter-spacing:1px;text-align:center;}
+    .theme-btn:hover{border-color:var(--accent);color:var(--accent);}
+    .theme-btn.active{border-color:var(--accent);color:var(--accent);background:rgba(0,229,255,0.05);}
+    .qr-wrap{text-align:center;padding:16px;}
+    .qr-wrap img{border-radius:4px;border:4px solid var(--surface2);}
+    .totp-info{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-dim);text-align:center;margin-top:8px;word-break:break-all;}
+    .badge{display:inline-block;padding:3px 10px;border-radius:10px;font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:1px;}
+    .badge.enabled{color:var(--success);background:rgba(0,255,136,0.1);border:1px solid rgba(0,255,136,0.2);}
+    .badge.disabled{color:var(--text-muted);background:rgba(42,80,96,0.2);border:1px solid var(--border);}
+    .row{display:flex;align-items:center;justify-content:space-between;gap:12px;}
+    .toast-container{position:fixed;top:62px;right:16px;z-index:999;display:flex;flex-direction:column;gap:8px;}
+    .toast{background:var(--surface);border:1px solid var(--border);border-radius:3px;padding:10px 16px;font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text);animation:toastIn 0.25s ease-out;box-shadow:0 4px 20px rgba(0,0,0,0.4);}
+    .toast.success{border-color:rgba(0,255,136,0.3);color:var(--success);}
+    .toast.error{border-color:rgba(255,71,87,0.3);color:var(--error);}
+    @keyframes toastIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
+  </style>
+</head>
+<body>
+<div class="topbar">
+  <div class="brand">SleepyAfk</div>
+  <nav class="nav">
+    <button class="nav-btn" onclick="location.href='home.html'">⌂ Home</button>
+    <button class="nav-btn" onclick="location.href='dashboard.html'">⚡ Bots</button>
+    <button class="nav-btn" onclick="location.href='servers.html'">🖥 Servers</button>
+    <button class="nav-btn active">👤 Account</button>
+  </nav>
+  <div class="topbar-right">
+    <div class="topbar-user">Logged in as <span id="topbarUser">—</span></div>
+    <button class="btn-sm danger" onclick="logout()">Logout</button>
+  </div>
+</div>
+<div class="page">
+  <div class="page-title">⚙️ Account Settings</div>
+
+  <!-- Theme -->
+  <div class="section">
+    <div class="section-header">🎨 Theme</div>
+    <div class="section-body">
+      <div class="theme-row">
+        <button class="theme-btn" id="theme-dark"  onclick="setTheme('dark')">🌑 Dark</button>
+        <button class="theme-btn" id="theme-dim"   onclick="setTheme('dim')">🌘 Dim</button>
+        <button class="theme-btn" id="theme-light" onclick="setTheme('light')">☀️ Light</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Change Password -->
+  <div class="section">
+    <div class="section-header">🔑 Change Password</div>
+    <div class="section-body">
+      <div class="alert-box" id="pwAlert"></div>
+      <div class="field"><label>Current Password</label><input id="currentPw" type="password" placeholder="Your current password"/></div>
+      <div class="field"><label>New Password</label><input id="newPw" type="password" placeholder="Min 6 characters"/></div>
+      <div class="field"><label>Confirm New Password</label><input id="confirmPw" type="password" placeholder="Repeat new password"/></div>
+      <button class="btn-action green" onclick="changePassword()">Update Password</button>
+    </div>
+  </div>
+
+  <!-- Discord Webhook (daily summary) -->
+  <div class="section">
+    <div class="section-header">🔔 Daily Summary Webhook</div>
+    <div class="section-body">
+      <div class="hint">Get a daily Discord digest every midnight with your bot stats, kicks, reconnects and server status.</div>
+      <div class="field"><label>Discord Webhook URL</label><input id="webhookUrl" type="text" placeholder="https://discord.com/api/webhooks/..."/></div>
+      <button class="btn-action" onclick="saveWebhook()">Save Webhook</button>
+    </div>
+  </div>
+
+  <!-- 2FA -->
+  <div class="section">
+    <div class="section-header">🛡️ Two-Factor Authentication</div>
+    <div class="section-body">
+      <div class="alert-box" id="twoFaAlert"></div>
+      <div class="row">
+        <div>
+          <div style="font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--text);margin-bottom:4px;">Status</div>
+          <div id="twoFaStatus" class="badge disabled">DISABLED</div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn-action purple" id="btn2faSetup" onclick="setup2fa()">Setup 2FA</button>
+          <button class="btn-action red"    id="btn2faDisable" onclick="disable2fa()" style="display:none">Disable 2FA</button>
+        </div>
+      </div>
+      <!-- QR Code area (shown during setup) -->
+      <div id="twoFaSetupArea" style="display:none">
+        <div class="qr-wrap"><img id="qrImg" src="" alt="QR Code"/></div>
+        <div class="totp-info">Can't scan? Enter this secret in your app:<br/><span id="totpSecret" style="color:var(--accent)"></span></div>
+        <div class="field" style="margin-top:12px;"><label>Enter 6-digit code to confirm</label><input id="twoFaCode" type="text" maxlength="6" placeholder="000000"/></div>
+        <button class="btn-action green" onclick="confirm2fa()">Confirm & Enable 2FA</button>
+      </div>
+      <!-- Disable area -->
+      <div id="twoFaDisableArea" style="display:none">
+        <div class="field"><label>Enter 2FA code to disable</label><input id="twoFaDisableCode" type="text" maxlength="6" placeholder="000000"/></div>
+      </div>
+      <div class="hint">Use Google Authenticator, Authy, or any TOTP app. Scan the QR code after clicking Setup.</div>
+    </div>
+  </div>
+
+  <!-- Public Status Page -->
+  <div class="section">
+    <div class="section-header">🌐 Public Status Page</div>
+    <div class="section-body">
+      <div class="hint">Share your bot and server status with anyone — no login required.</div>
+      <div style="display:flex;gap:10px;align-items:center;">
+        <input id="statusUrl" type="text" readonly style="background:var(--surface2);border:1px solid var(--border);border-radius:3px;padding:10px 14px;font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--accent);outline:none;flex:1;" />
+        <button class="btn-action" onclick="copyStatusUrl()">Copy</button>
+        <button class="btn-action" onclick="openStatusPage()">Open</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Account Info -->
+  <div class="section">
+    <div class="section-header">ℹ️ Account Info</div>
+    <div class="section-body">
+      <div class="row"><span class="hint">Username</span><span id="infoUsername" style="font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--text)">—</span></div>
+      <div class="row"><span class="hint">Email</span><span id="infoEmail" style="font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--text)">—</span></div>
+      <div class="row"><span class="hint">Role</span><span id="infoRole" style="font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--accent2)">—</span></div>
+      <div class="row"><span class="hint">Sign-in method</span><span id="infoMethod" style="font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--text-dim)">—</span></div>
+      <div class="row"><span class="hint">Member since</span><span id="infoSince" style="font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--text-dim)">—</span></div>
+    </div>
+  </div>
+</div>
+<div class="toast-container" id="toastContainer"></div>
+<script>
+const token=localStorage.getItem('afk_token');
+const username=localStorage.getItem('afk_username');
+if(!token)location.href='/';
+document.getElementById('topbarUser').textContent=username||'—';
+function logout(){localStorage.removeItem('afk_token');localStorage.removeItem('afk_username');location.href='/';}
+
+async function api(method,path,body){
+  const res=await fetch(path,{method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:body?JSON.stringify(body):undefined});
+  if(res.status===401){logout();return null;}
+  return res.json();
+}
+function toast(msg,type='info'){
+  const c=document.getElementById('toastContainer');const t=document.createElement('div');t.className='toast '+type;t.textContent=msg;c.appendChild(t);setTimeout(()=>t.remove(),3500);
+}
+function showAlert(id,msg,type){const e=document.getElementById(id);e.className='alert-box '+type;e.textContent=msg;}
+
+// Theme
+const themes={dark:{bg:'#050b0e',surface:'#0c1a1f',surface2:'#0f2028',surface3:'#122430',text:'#c8e6ef'},dim:{bg:'#080e11',surface:'#0f1f26',surface2:'#12252d',surface3:'#162b34',text:'#d4eaf2'},light:{bg:'#f0f5f7',surface:'#ffffff',surface2:'#e8f2f7',surface3:'#dde9ef',text:'#1a3a4a'}};
+
+function applyTheme(t){
+  const th=themes[t]||themes.dark;
+  const r=document.documentElement.style;
+  r.setProperty('--bg',th.bg);r.setProperty('--surface',th.surface);r.setProperty('--surface2',th.surface2);r.setProperty('--surface3',th.surface3);r.setProperty('--text',th.text);
+  if(t==='light'){r.setProperty('--text-dim','#4a7a8a');r.setProperty('--border','#c0d8e0');r.setProperty('--border2','#d0e5ec');}
+  else{r.setProperty('--text-dim','#4a7a8a');r.setProperty('--border','#1a3a44');r.setProperty('--border2','#0f2830');}
+  document.querySelectorAll('.theme-btn').forEach(b=>b.classList.remove('active'));
+  const btn=document.getElementById('theme-'+t);if(btn)btn.classList.add('active');
+  localStorage.setItem('afk_theme',t);
+}
+
+async function setTheme(t){
+  applyTheme(t);
+  await api('PUT','/api/account/theme',{theme:t});
+  toast('Theme saved','success');
+}
+
+async function changePassword(){
+  const currentPassword=document.getElementById('currentPw').value;
+  const newPassword=document.getElementById('newPw').value;
+  const confirm=document.getElementById('confirmPw').value;
+  if(newPassword!==confirm)return showAlert('pwAlert','Passwords do not match','error');
+  const r=await api('PUT','/api/account/password',{currentPassword,newPassword});
+  if(!r)return;
+  if(r.error)showAlert('pwAlert',r.error,'error');
+  else{showAlert('pwAlert','Password updated!','success');document.getElementById('currentPw').value='';document.getElementById('newPw').value='';document.getElementById('confirmPw').value='';}
+}
+
+async function saveWebhook(){
+  const discordWebhook=document.getElementById('webhookUrl').value.trim();
+  const r=await api('PUT','/api/account/webhook',{discordWebhook});
+  if(r?.success)toast('Webhook saved!','success');
+}
+
+async function setup2fa(){
+  const r=await api('POST','/api/account/2fa/setup');
+  if(!r||r.error)return toast('Setup failed: '+(r?.error||'error'),'error');
+  document.getElementById('qrImg').src=r.qrUrl;
+  document.getElementById('totpSecret').textContent=r.secret;
+  document.getElementById('twoFaSetupArea').style.display='';
+}
+
+async function confirm2fa(){
+  const code=document.getElementById('twoFaCode').value.trim();
+  if(!code||code.length!==6)return toast('Enter a 6-digit code','error');
+  const r=await api('POST','/api/account/2fa/enable',{code});
+  if(!r||r.error)return showAlert('twoFaAlert',r?.error||'Invalid code','error');
+  toast('2FA enabled!','success');
+  document.getElementById('twoFaSetupArea').style.display='none';
+  document.getElementById('twoFaStatus').className='badge enabled';
+  document.getElementById('twoFaStatus').textContent='ENABLED';
+  document.getElementById('btn2faSetup').style.display='none';
+  document.getElementById('btn2faDisable').style.display='';
+}
+
+async function disable2fa(){
+  document.getElementById('twoFaDisableArea').style.display='';
+  const code=prompt('Enter your 2FA code to disable:');
+  if(!code)return;
+  const r=await api('POST','/api/account/2fa/disable',{code});
+  if(!r||r.error)return toast(r?.error||'Invalid code','error');
+  toast('2FA disabled','warn');
+  document.getElementById('twoFaStatus').className='badge disabled';
+  document.getElementById('twoFaStatus').textContent='DISABLED';
+  document.getElementById('btn2faSetup').style.display='';
+  document.getElementById('btn2faDisable').style.display='none';
+}
+
+function copyStatusUrl(){navigator.clipboard.writeText(document.getElementById('statusUrl').value);toast('Copied!','success');}
+function openStatusPage(){window.open(document.getElementById('statusUrl').value,'_blank');}
+
+async function init(){
+  const saved=localStorage.getItem('afk_theme')||'dark';
+  applyTheme(saved);
+  const r=await api('GET','/api/account');
+  if(!r)return;
+  document.getElementById('infoUsername').textContent=r.username||'—';
+  document.getElementById('infoEmail').textContent=r.email||'—';
+  document.getElementById('infoRole').textContent=(r.role||'admin').toUpperCase();
+  document.getElementById('infoMethod').textContent=r.googleId?'Google OAuth':'Password';
+  document.getElementById('infoSince').textContent=r.createdAt?new Date(r.createdAt).toLocaleDateString():'—';
+  document.getElementById('webhookUrl').value=r.discordWebhook||'';
+  const host=location.origin;
+  document.getElementById('statusUrl').value=`${host}/status.html?u=${r.username}`;
+  if(r.twoFactorEnabled){
+    document.getElementById('twoFaStatus').className='badge enabled';
+    document.getElementById('twoFaStatus').textContent='ENABLED';
+    document.getElementById('btn2faSetup').style.display='none';
+    document.getElementById('btn2faDisable').style.display='';
+  }
+}
+init();
+</script>
+</body>
+</html>
