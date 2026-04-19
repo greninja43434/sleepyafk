@@ -1,538 +1,627 @@
-const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const mineflayer = require('mineflayer');
-const fs = require('fs');
-const path = require('path');
+'use strict';
+const express        = require('express');
+const http           = require('http');
+const { Server }     = require('socket.io');
+const bcrypt         = require('bcryptjs');
+const jwt            = require('jsonwebtoken');
+const mineflayer     = require('mineflayer');
+const mongoose       = require('mongoose');
+const passport       = require('passport');
+const GoogleStrategy = require('passport-google-oauth20').Strategy;
+const speakeasy      = require('speakeasy');
+const QRCode         = require('qrcode');
+const cron           = require('node-cron');
+const session        = require('express-session');
+const path           = require('path');
 
-const app = express();
+// ─── Config ───────────────────────────────────────────────────────────────────
+const PORT                 = process.env.PORT                 || 3000;
+const JWT_SECRET           = process.env.JWT_SECRET           || 'sleepyafk-secret-v5';
+const SESSION_SECRET       = process.env.SESSION_SECRET       || 'sleepyafk-session-v5';
+const MONGODB_URI          = process.env.MONGODB_URI          || 'mongodb+srv://rohithmenikonda1_db_user:sleepy123@sleeper.04ygzxi.mongodb.net/sleepyafk?appName=sleeper';
+const GOOGLE_CLIENT_ID     = process.env.GOOGLE_CLIENT_ID     || '665146660532-jta4bbg0l1koed1p97gvqgjc2n1g6rpf.apps.googleusercontent.com';
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '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';
+const APP_URL              = process.env.APP_URL              || 'http://localhost:3000';
+
+const app    = express();
 const server = http.createServer(app);
-const io = new Server(server);
+const io     = new Server(server);
 
-const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET || 'sleepyafk-super-secret-2024';
-const DATA_DIR    = path.join(__dirname, 'data');
-const USERS_FILE  = path.join(DATA_DIR, 'users.json');
-const BOTS_FILE   = path.join(DATA_DIR, 'bots.json');
-const RUNNING_FILE= path.join(DATA_DIR, 'running.json');
-const STATS_FILE  = path.join(DATA_DIR, 'stats.json'); // per-bot uptime + event history
+// ─── Mongoose Models ──────────────────────────────────────────────────────────
+const UserSchema = new mongoose.Schema({
+  username:         { type:String, unique:true, sparse:true },
+  email:            { type:String, unique:true, sparse:true },
+  googleId:         { type:String, unique:true, sparse:true },
+  passwordHash:     String,
+  role:             { type:String, enum:['admin','viewer'], default:'admin' },
+  twoFactorSecret:  String,
+  twoFactorEnabled: { type:Boolean, default:false },
+  theme:            { type:String, default:'dark' },
+  discordWebhook:   { type:String, default:'' },
+  createdAt:        { type:Date, default:Date.now }
+});
+const User = mongoose.model('User', UserSchema);
 
-if (!fs.existsSync(DATA_DIR))     fs.mkdirSync(DATA_DIR);
-if (!fs.existsSync(USERS_FILE))   fs.writeFileSync(USERS_FILE,  '[]');
-if (!fs.existsSync(BOTS_FILE))    fs.writeFileSync(BOTS_FILE,   '[]');
-if (!fs.existsSync(RUNNING_FILE)) fs.writeFileSync(RUNNING_FILE,'[]');
-if (!fs.existsSync(STATS_FILE))   fs.writeFileSync(STATS_FILE,  '{}');
+const BotSchema = new mongoose.Schema({
+  owner:String, name:String, host:String, port:Number,
+  username:String, version:{type:String,default:''},
+  color:{type:String,default:'#00e5ff'}, avatar:{type:String,default:'🤖'},
+  antiAfk:{type:Object,default:{jumpEnabled:true,jumpInterval:30,walkEnabled:true,walkInterval:45,lookEnabled:true,lookInterval:20}},
+  timedMessages:{type:Array,default:[]},
+  autoRejoin:{type:Boolean,default:false}, autoLeave:{type:Boolean,default:false},
+  onJoinCommand:{type:String,default:''}, onJoinCommands:{type:Array,default:[]},
+  cycleEnabled:{type:Boolean,default:false}, cycleLeaveEvery:{type:Number,default:15}, cycleRejoinAfter:{type:Number,default:5},
+  autoRespawn:{type:Boolean,default:false}, discordWebhook:{type:String,default:''},
+  schedule:{type:Object,default:{enabled:false,startTime:'08:00',stopTime:'23:00'}},
+  createdAt:{type:Date,default:Date.now}
+});
+const Bot = mongoose.model('Bot', BotSchema);
 
-function readUsers()    { return JSON.parse(fs.readFileSync(USERS_FILE,  'utf8')); }
-function writeUsers(d)  { fs.writeFileSync(USERS_FILE,  JSON.stringify(d, null, 2)); }
-function readBots()     { return JSON.parse(fs.readFileSync(BOTS_FILE,   'utf8')); }
-function writeBots(d)   { fs.writeFileSync(BOTS_FILE,   JSON.stringify(d, null, 2)); }
-function readRunning()  { try { return JSON.parse(fs.readFileSync(RUNNING_FILE,'utf8')); } catch { return []; } }
-function writeRunning(ids) { fs.writeFileSync(RUNNING_FILE, JSON.stringify(ids)); }
-function readStats()    { try { return JSON.parse(fs.readFileSync(STATS_FILE,'utf8')); } catch { return {}; } }
-function writeStats(d)  { fs.writeFileSync(STATS_FILE, JSON.stringify(d, null, 2)); }
+// MC Server Monitor — stores panel connection info server-side only
+const ServerSchema = new mongoose.Schema({
+  owner:String, name:String,
+  host:String, port:{type:Number,default:25565},
+  tags:{type:[String],default:[]},
+  // Pterodactyl fields (stored securely, never sent to browser)
+  panelUrl:{type:String,default:''},
+  panelServerId:{type:String,default:''},
+  panelApiKey:{type:String,default:''},
+  // Alert settings
+  alertWebhook:{type:String,default:''},
+  playerJoinAlerts:{type:[String],default:[]},
+  uptimeAlertMinutes:{type:Number,default:0},
+  offlineSince:{type:Date,default:null},
+  alertedOffline:{type:Boolean,default:false},
+  createdAt:{type:Date,default:Date.now}
+});
+const ServerModel = mongoose.model('Server', ServerSchema);
 
-function markRunning(id) { const ids=readRunning(); if(!ids.includes(id)){ids.push(id);writeRunning(ids);} }
-function markStopped(id) { writeRunning(readRunning().filter(x=>x!==id)); }
+const StatsSchema = new mongoose.Schema({
+  botId:{type:String,unique:true},
+  totalUptime:{type:Number,default:0}, sessionStart:{type:Number,default:null},
+  kicks:{type:Number,default:0}, reconnects:{type:Number,default:0}, messagesOut:{type:Number,default:0},
+  uptimeHistory:{type:Array,default:[]}
+});
+const Stats = mongoose.model('Stats', StatsSchema);
 
-// ─── Per-bot stats tracking ───────────────────────────────────────────────────
-// stats[botId] = { totalUptime, sessionStart, kicks, reconnects, messagesOut, uptimeHistory: [{t,v},...] }
-
-function getStats(botId) {
-  const s = readStats();
-  if (!s[botId]) s[botId] = { totalUptime:0, sessionStart:null, kicks:0, reconnects:0, messagesOut:0, uptimeHistory:[] };
-  return s[botId];
+// ─── Stats helpers ────────────────────────────────────────────────────────────
+async function recordUptimeTick(botId) {
+  const now=Date.now();
+  await Stats.updateOne({botId},{$push:{uptimeHistory:{$each:[{t:now,online:1}],$slice:-1440}},$inc:{totalUptime:60}},{upsert:true});
 }
-function saveStats(botId, data) {
-  const s = readStats(); s[botId] = data; writeStats(s);
+async function recordDowntimeTick(botId) {
+  const now=Date.now();
+  await Stats.updateOne({botId},{$push:{uptimeHistory:{$each:[{t:now,online:0}],$slice:-1440}}},{upsert:true});
 }
-function recordUptimeTick(botId) {
-  const st = getStats(botId);
-  const now = Date.now();
-  // add one data point per minute tick
-  st.uptimeHistory.push({ t: now, online: 1 });
-  // keep only last 24h (1440 minutes)
-  const cutoff = now - 24*60*60*1000;
-  st.uptimeHistory = st.uptimeHistory.filter(p => p.t > cutoff);
-  if (st.sessionStart) st.totalUptime += 60; // 60 seconds per tick
-  saveStats(botId, st);
-}
-function recordDowntimeTick(botId) {
-  const st = getStats(botId);
-  const now = Date.now();
-  st.uptimeHistory.push({ t: now, online: 0 });
-  const cutoff = now - 24*60*60*1000;
-  st.uptimeHistory = st.uptimeHistory.filter(p => p.t > cutoff);
-  saveStats(botId, st);
-}
+
+// ─── Passport / Google OAuth ──────────────────────────────────────────────────
+passport.use(new GoogleStrategy({
+  clientID:GOOGLE_CLIENT_ID, clientSecret:GOOGLE_CLIENT_SECRET,
+  callbackURL:`${APP_URL}/auth/google/callback`
+}, async(at,rt,profile,done)=>{
+  try {
+    let user=await User.findOne({googleId:profile.id});
+    if(!user){
+      const email=profile.emails?.[0]?.value;
+      user=await User.findOne({email});
+      if(user){user.googleId=profile.id;await user.save();}
+      else{
+        const base=(profile.displayName||'user').replace(/\s+/g,'').toLowerCase().slice(0,16);
+        let uname=base,n=1;
+        while(await User.findOne({username:uname}))uname=base+(n++);
+        user=await User.create({googleId:profile.id,email,username:uname,role:'admin'});
+      }
+    }
+    return done(null,user);
+  }catch(e){return done(e);}
+}));
+passport.serializeUser((u,done)=>done(null,u._id));
+passport.deserializeUser(async(id,done)=>{try{const u=await User.findById(id);done(null,u);}catch(e){done(e);}});
 
 // ─── Active Bot Runtime ───────────────────────────────────────────────────────
-const activeBots = new Map();
+const activeBots=new Map();
+const uptimeTickers=new Map();
+function startUptimeTicker(id){stopUptimeTicker(id);uptimeTickers.set(id,setInterval(()=>recordUptimeTick(id),60000));}
+function stopUptimeTicker(id){if(uptimeTickers.has(id)){clearInterval(uptimeTickers.get(id));uptimeTickers.delete(id);}}
 
-// Uptime tick interval (per-minute)
-const uptimeTickers = new Map();
-function startUptimeTicker(botId) {
-  stopUptimeTicker(botId);
-  uptimeTickers.set(botId, setInterval(() => recordUptimeTick(botId), 60*1000));
-}
-function stopUptimeTicker(botId) {
-  if (uptimeTickers.has(botId)) { clearInterval(uptimeTickers.get(botId)); uptimeTickers.delete(botId); }
-}
-
-function addLog(botId, message, type='info') {
-  const runtime = activeBots.get(botId);
-  const entry = { time: new Date().toISOString(), message, type };
-  if (runtime) { runtime.logs.push(entry); if (runtime.logs.length > 500) runtime.logs.shift(); }
-  io.emit('bot:log', { botId, entry });
-  io.emit('home:activity', { botId, entry }); // also send to home screen
+function addLog(botId,message,type='info'){
+  const rt=activeBots.get(botId);
+  const entry={time:new Date().toISOString(),message,type};
+  if(rt){rt.logs.push(entry);if(rt.logs.length>500)rt.logs.shift();}
+  io.emit('bot:log',{botId,entry});
+  io.emit('home:activity',{botId,entry});
 }
 
-// ─── Anti-AFK ────────────────────────────────────────────────────────────────
-function startAntiAfk(botId, bot, config) {
-  const intervals = [];
-  if (config.jumpEnabled && config.jumpInterval > 0)
-    intervals.push(setInterval(() => { try { if (bot?.entity) { bot.setControlState('jump',true); setTimeout(()=>bot.setControlState('jump',false),300); addLog(botId,'🦘 Anti-AFK: jumped','afk'); } } catch {} }, config.jumpInterval*1000));
-  if (config.walkEnabled && config.walkInterval > 0)
-    intervals.push(setInterval(() => { try { if (bot?.entity) { const dirs=['forward','back','left','right']; const d=dirs[Math.floor(Math.random()*4)]; bot.setControlState(d,true); setTimeout(()=>bot.setControlState(d,false),800+Math.random()*400); addLog(botId,`🚶 Anti-AFK: walked ${d}`,'afk'); } } catch {} }, config.walkInterval*1000));
-  if (config.lookEnabled && config.lookInterval > 0)
-    intervals.push(setInterval(() => { try { if (bot?.entity) { bot.look((Math.random()*Math.PI*2)-Math.PI,(Math.random()*Math.PI/2)-Math.PI/4,false); addLog(botId,'👀 Anti-AFK: looked','afk'); } } catch {} }, config.lookInterval*1000));
-  return intervals;
+async function sendWebhook(url,payload){
+  if(!url)return;
+  try{await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});}catch{}
 }
 
-// ─── Timed Messages ───────────────────────────────────────────────────────────
-function startTimedMessages(botId, bot, timedMessages) {
-  const intervals = [];
-  if (!Array.isArray(timedMessages)) return intervals;
-  timedMessages.forEach(tm => {
-    if (!tm.enabled || !tm.message?.trim()) return;
-    const ms = ((parseInt(tm.hours)||0)*3600+(parseInt(tm.minutes)||0)*60+(parseInt(tm.seconds)||0))*1000;
-    if (ms < 5000) { addLog(botId,`⚠️ Skipped "${tm.message}" — too short`,'warn'); return; }
-    intervals.push(setInterval(() => {
-      try { if (bot?.entity) {
-        bot.chat(tm.message.trim());
-        const label = tm.message.trim().startsWith('/') ? '⚡ Command' : '📢 Timed';
-        addLog(botId,`${label}: ${tm.message.trim()}`,'timed');
-        const st = getStats(botId); st.messagesOut++; saveStats(botId, st);
-      } } catch {}
-    }, ms));
-    const hS=(parseInt(tm.hours)||0)>0?`${tm.hours}h `:'', mS=(parseInt(tm.minutes)||0)>0?`${tm.minutes}m `:'', sS=(parseInt(tm.seconds)||0)>0?`${tm.seconds}s`:'';
-    addLog(botId,`⏱ Scheduled: "${tm.message.trim()}" every ${hS}${mS}${sS}`,'info');
+function startAntiAfk(botId,bot,cfg){
+  const iv=[];
+  if(cfg.jumpEnabled&&cfg.jumpInterval>0)iv.push(setInterval(()=>{try{if(bot?.entity){bot.setControlState('jump',true);setTimeout(()=>bot.setControlState('jump',false),300);addLog(botId,'🦘 Anti-AFK: jumped','afk');}}catch{}},cfg.jumpInterval*1000));
+  if(cfg.walkEnabled&&cfg.walkInterval>0)iv.push(setInterval(()=>{try{if(bot?.entity){const d=['forward','back','left','right'][Math.floor(Math.random()*4)];bot.setControlState(d,true);setTimeout(()=>bot.setControlState(d,false),800+Math.random()*400);addLog(botId,`🚶 Anti-AFK: walked ${d}`,'afk');}}catch{}},cfg.walkInterval*1000));
+  if(cfg.lookEnabled&&cfg.lookInterval>0)iv.push(setInterval(()=>{try{if(bot?.entity){bot.look((Math.random()*Math.PI*2)-Math.PI,(Math.random()*Math.PI/2)-Math.PI/4,false);addLog(botId,'👀 Anti-AFK: looked','afk');}}catch{}},cfg.lookInterval*1000));
+  return iv;
+}
+
+function startTimedMessages(botId,bot,msgs){
+  const iv=[];
+  if(!Array.isArray(msgs))return iv;
+  msgs.forEach(tm=>{
+    if(!tm.enabled||!tm.message?.trim())return;
+    const ms=((parseInt(tm.hours)||0)*3600+(parseInt(tm.minutes)||0)*60+(parseInt(tm.seconds)||0))*1000;
+    if(ms<5000){addLog(botId,`⚠️ Skipped "${tm.message}" — too short`,'warn');return;}
+    iv.push(setInterval(()=>{try{if(bot?.entity){bot.chat(tm.message.trim());addLog(botId,`${tm.message.trim().startsWith('/')?'⚡ Command':'📢 Timed'}: ${tm.message.trim()}`,'timed');Stats.updateOne({botId},{$inc:{messagesOut:1}},{upsert:true}).catch(()=>{});}}catch{}},ms));
   });
-  return intervals;
+  return iv;
 }
 
-function stopIntervals(arr) { if(arr) arr.forEach(id=>clearInterval(id)); }
+function stopIvs(arr){if(arr)arr.forEach(id=>clearInterval(id));}
 
-// ─── Cycle ────────────────────────────────────────────────────────────────────
-function scheduleCycle(botId, botConfig) {
-  const runtime = activeBots.get(botId);
-  if (!runtime || !botConfig.cycleEnabled) return;
-  const leaveMs  = (botConfig.cycleLeaveEvery  || 15) * 60000;
-  const rejoinMs = (botConfig.cycleRejoinAfter || 5)  * 1000;
-  addLog(botId,`🔁 Cycle: leave in ${botConfig.cycleLeaveEvery||15}m, rejoin after ${botConfig.cycleRejoinAfter||5}s`,'info');
-  runtime.cycleTimeout = setTimeout(() => {
-    const rt = activeBots.get(botId);
-    if (!rt || rt.stopping) return;
-    addLog(botId,`🔁 Cycle leave — offline for ${botConfig.cycleRejoinAfter||5}s`,'warn');
-    stopIntervals(rt.afkIntervals); stopIntervals(rt.msgIntervals);
-    if (rt.cycleTimeout) clearTimeout(rt.cycleTimeout);
-    if (rt.statsPoller)  clearInterval(rt.statsPoller);
-    if (rt.watchdog)      clearInterval(rt.watchdog);
-    try { rt.bot.quit('cycle'); } catch {}
-    activeBots.delete(botId); stopUptimeTicker(botId);
-    io.emit('bot:statusChange', { botId, status:'offline' });
-    setTimeout(() => {
-      const fresh = readBots().find(b=>b.id===botId);
-      if (fresh && !activeBots.has(botId)) { addLog(botId,'🔁 Cycle rejoin...','info'); startBot(fresh); }
-    }, rejoinMs);
-  }, leaveMs);
+function scheduleCycle(botId,cfg){
+  const rt=activeBots.get(botId);
+  if(!rt||!cfg.cycleEnabled)return;
+  addLog(botId,`🔁 Cycle: leave in ${cfg.cycleLeaveEvery||15}m, rejoin after ${cfg.cycleRejoinAfter||5}s`,'info');
+  rt.cycleTimeout=setTimeout(async()=>{
+    const r=activeBots.get(botId);if(!r||r.stopping)return;
+    addLog(botId,'🔁 Cycle leave','warn');
+    stopIvs(r.afkIvs);stopIvs(r.msgIvs);
+    if(r.cycleTimeout)clearTimeout(r.cycleTimeout);
+    if(r.statsPoller)clearInterval(r.statsPoller);
+    if(r.watchdog)clearInterval(r.watchdog);
+    try{r.bot.quit('cycle');}catch{}
+    activeBots.delete(botId);stopUptimeTicker(botId);
+    io.emit('bot:statusChange',{botId,status:'offline'});
+    setTimeout(async()=>{
+      const fresh=await Bot.findById(botId).catch(()=>null);
+      if(fresh&&!activeBots.has(botId)){addLog(botId,'🔁 Cycle rejoin','info');startBot(fresh);}
+    },(cfg.cycleRejoinAfter||5)*1000);
+  },(cfg.cycleLeaveEvery||15)*60000);
 }
 
-function sendOnJoinCommand(botId, bot, cmd) {
-  if (!cmd?.trim()) return;
-  setTimeout(() => { try { if(bot?.entity){bot.chat(cmd.trim()); addLog(botId,`⚡ On-join: ${cmd.trim()}`,'sent'); const st=getStats(botId); st.messagesOut++; saveStats(botId,st); } } catch {} }, 1500);
+function sendOnJoinCommands(botId,bot,cmds,legacy){
+  let list=[];
+  if(Array.isArray(cmds)&&cmds.length)list=cmds.filter(c=>c.command?.trim());
+  else if(typeof legacy==='string'&&legacy.trim())list=[{command:legacy.trim(),delay:1500}];
+  list.forEach((c,i)=>setTimeout(()=>{try{if(bot?.entity){bot.chat(c.command.trim());addLog(botId,`⚡ On-join ${i+1}: ${c.command.trim()}`,'sent');}}catch{}},c.delay||1500+(i*200)));
 }
 
-// ─── Bot Lifecycle ────────────────────────────────────────────────────────────
-function startBot(botConfig) {
-  const { id, host, port, username, version, antiAfk, timedMessages, autoRejoin, autoLeave, onJoinCommand, onJoinCommands, cycleEnabled, cycleLeaveEvery, cycleRejoinAfter, autoRespawn, discordWebhook } = botConfig;
-  if (activeBots.has(id)) { addLog(id,'⚠️ Already running','warn'); return; }
+function enableAutoRespawn(botId,bot){
+  bot.on('death',()=>{addLog(botId,'💀 Bot died — respawning...','warn');setTimeout(()=>{try{bot.respawn();addLog(botId,'✅ Respawned','success');}catch{}},1000);});
+}
+
+async function startBot(botDoc){
+  const id=botDoc._id.toString();
+  if(activeBots.has(id)){addLog(id,'⚠️ Already running','warn');return;}
+  const cfg=botDoc.toObject?botDoc.toObject():botDoc;
+  const {host,port,username,version,antiAfk,timedMessages,autoRejoin,autoLeave,onJoinCommand,onJoinCommands,cycleEnabled,cycleLeaveEvery,cycleRejoinAfter,autoRespawn,discordWebhook}=cfg;
   addLog(id,`🔌 Connecting to ${host}:${port} as ${username}...`,'info');
-  io.emit('bot:statusChange', { botId:id, status:'connecting' });
+  io.emit('bot:statusChange',{botId:id,status:'connecting'});
   let bot;
-  try { bot = mineflayer.createBot({ host, port:parseInt(port,10), username, version:version||false, auth:'offline', hideErrors:false }); }
-  catch(err) { addLog(id,`❌ Failed: ${err.message}`,'error'); io.emit('bot:statusChange',{botId:id,status:'error'}); return; }
-
-  const runtime = { bot, afkIntervals:[], msgIntervals:[], cycleTimeout:null, logs:activeBots.get(id)?.logs||[], stopping:false };
-  activeBots.set(id, runtime);
-  markRunning(id);
-
-  // Track reconnect count
-  const st = getStats(id);
-  if (st.sessionStart !== null) { st.reconnects++; }
-  st.sessionStart = Date.now();
-  saveStats(id, st);
-
-  bot.once('spawn', () => {
+  try{bot=mineflayer.createBot({host,port:parseInt(port,10),username,version:version||false,auth:'offline',hideErrors:false});}
+  catch(err){addLog(id,`❌ Failed: ${err.message}`,'error');io.emit('bot:statusChange',{botId:id,status:'error'});return;}
+  const rt={bot,afkIvs:[],msgIvs:[],cycleTimeout:null,statsPoller:null,watchdog:null,logs:activeBots.get(id)?.logs||[],stopping:false};
+  activeBots.set(id,rt);
+  Stats.findOneAndUpdate({botId:id},{$inc:{reconnects:1},$set:{sessionStart:Date.now()}},{upsert:true,new:true}).catch(()=>{});
+  bot.once('spawn',()=>{
     addLog(id,`✅ Spawned on ${host}:${port}`,'success');
-    if (discordWebhook) sendDiscordWebhook(discordWebhook, {
-      embeds:[{ title:'✅ Bot Online', description:`**${username}** connected to \`${host}:${port}\``, color:0x00ff88, timestamp:new Date().toISOString(), footer:{text:'SleepyAfk'} }]
-    });
-    io.emit('bot:statusChange', { botId:id, status:'online' });
-    io.emit('home:botOnline', { botId:id });
-    runtime.afkIntervals = startAntiAfk(id, bot, antiAfk||{});
-    runtime.msgIntervals = startTimedMessages(id, bot, timedMessages||[]);
-    sendOnJoinCommands(id, bot, onJoinCommands || onJoinCommand);
-    scheduleCycle(id, botConfig);
-    if (autoRespawn) enableAutoRespawn(id, bot);
+    io.emit('bot:statusChange',{botId:id,status:'online'});
+    rt.afkIvs=startAntiAfk(id,bot,antiAfk||{});
+    rt.msgIvs=startTimedMessages(id,bot,timedMessages||[]);
+    sendOnJoinCommands(id,bot,onJoinCommands,onJoinCommand);
+    if(autoRespawn)enableAutoRespawn(id,bot);
+    scheduleCycle(id,cfg);
     startUptimeTicker(id);
+    if(discordWebhook)sendWebhook(discordWebhook,{embeds:[{title:'✅ Bot Online',description:`**${username}** connected to \`${host}:${port}\``,color:0x00ff88,timestamp:new Date().toISOString(),footer:{text:'SleepyAfk'}}]});
+    rt.statsPoller=setInterval(()=>{try{if(!activeBots.has(id)){clearInterval(rt.statsPoller);return;}if(bot?.entity&&bot.health!==undefined)io.emit('bot:stats',{botId:id,health:Math.round(bot.health??0),food:Math.round(bot.food??0),ping:bot.player?.ping??0});}catch{}},3000);
+    rt.watchdog=setInterval(()=>{try{if(!activeBots.has(id)){clearInterval(rt.watchdog);return;}if(bot?.state==='disconnected'||bot?.state==='errored'||(!bot?.entity&&bot?._client?.socket?.destroyed)){clearInterval(rt.watchdog);const r2=activeBots.get(id);if(r2)handleDisconnect('❌ Connection lost','server unreachable');}}catch{}},8000);
   });
-
-  bot.on('chat',    (u,m) => addLog(id,`💬 <${u}> ${m}`,'chat'));
-  bot.on('whisper', (u,m) => addLog(id,`📩 [Whisper] <${u}> ${m}`,'chat'));
-
-  function handleDisconnect(label, reason) {
-    const rt = activeBots.get(id);
-    if (!rt) return;
+  bot.on('chat',(u,m)=>addLog(id,`💬 <${u}> ${m}`,'chat'));
+  bot.on('whisper',(u,m)=>addLog(id,`📩 [Whisper] <${u}> ${m}`,'chat'));
+  bot.on('health',()=>{try{io.emit('bot:stats',{botId:id,health:Math.round(bot.health??0),food:Math.round(bot.food??0),ping:bot.player?.ping??0});}catch{}});
+  function handleDisconnect(label,reason){
+    const r=activeBots.get(id);if(!r)return;
     addLog(id,`${label}: ${reason||'ended'}`,'error');
-    stopIntervals(rt.afkIntervals); stopIntervals(rt.msgIntervals);
-    if (rt.cycleTimeout) clearTimeout(rt.cycleTimeout);
-    if (rt.statsPoller)  clearInterval(rt.statsPoller);
-    if (rt.watchdog)      clearInterval(rt.watchdog);
-    activeBots.delete(id); stopUptimeTicker(id);
-    // record downtime ticks for the gap (approximate — 1 tick for the event)
-    recordDowntimeTick(id);
-    const st2 = getStats(id); st2.sessionStart = null; saveStats(id, st2);
-    io.emit('bot:statusChange', { botId:id, status:'offline' });
-    if (!rt.stopping && discordWebhook) sendDiscordWebhook(discordWebhook, {
-      embeds:[{ title:'🔴 Bot Offline', description:`**${username}** disconnected from \`${host}:${port}\``, color:0xff6b35, timestamp:new Date().toISOString(), footer:{text:'SleepyAfk'} }]
-    });
-    if (rt.stopping) { markStopped(id); return; }
-    if (autoRejoin) { addLog(id,'🔄 Auto-rejoin in 5s...','warn'); setTimeout(()=>{ const f=readBots().find(b=>b.id===id); if(f&&!activeBots.has(id)) startBot(f); },5000); }
-    else markStopped(id);
+    stopIvs(r.afkIvs);stopIvs(r.msgIvs);
+    if(r.cycleTimeout)clearTimeout(r.cycleTimeout);
+    if(r.statsPoller)clearInterval(r.statsPoller);
+    if(r.watchdog)clearInterval(r.watchdog);
+    activeBots.delete(id);stopUptimeTicker(id);
+    recordDowntimeTick(id).catch(()=>{});
+    Stats.updateOne({botId:id},{$set:{sessionStart:null}},{upsert:true}).catch(()=>{});
+    io.emit('bot:statusChange',{botId:id,status:'offline'});
+    if(r.stopping)return;
+    if(discordWebhook)sendWebhook(discordWebhook,{embeds:[{title:'🔴 Bot Offline',description:`**${username}** disconnected from \`${host}:${port}\``,color:0xff4757,timestamp:new Date().toISOString(),footer:{text:'SleepyAfk'}}]});
+    if(autoRejoin){addLog(id,'🔄 Auto-rejoin in 5s...','warn');setTimeout(async()=>{const f=await Bot.findById(id).catch(()=>null);if(f&&!activeBots.has(id))startBot(f);},5000);}
   }
-
-  bot.on('kicked', (reason) => {
-    let msg=reason; try{msg=JSON.parse(reason)?.text||JSON.stringify(JSON.parse(reason));}catch{}
-    const st2=getStats(id); st2.kicks++; saveStats(id,st2);
-    if (discordWebhook) sendDiscordWebhook(discordWebhook, {
-      embeds:[{ title:'👢 Bot Kicked', description:`**${username}** was kicked from \`${host}:${port}\`\n\`${msg}\``, color:0xff4757, timestamp:new Date().toISOString(), footer:{text:'SleepyAfk'} }]
-    });
-    if (autoLeave) { addLog(id,`👢 Kicked (auto-leave): ${msg}`,'warn'); const rt=activeBots.get(id); if(rt){stopIntervals(rt.afkIntervals);stopIntervals(rt.msgIntervals);if(rt.cycleTimeout)clearTimeout(rt.cycleTimeout);if(rt.statsPoller)clearInterval(rt.statsPoller);if(rt.watchdog)clearInterval(rt.watchdog);} activeBots.delete(id); stopUptimeTicker(id); markStopped(id); io.emit('bot:statusChange',{botId:id,status:'offline'}); return; }
-    handleDisconnect('👢 Kicked', msg);
+  bot.on('kicked',reason=>{
+    let msg=reason;try{msg=JSON.parse(reason)?.text||JSON.stringify(JSON.parse(reason));}catch{}
+    Stats.updateOne({botId:id},{$inc:{kicks:1}},{upsert:true}).catch(()=>{});
+    if(discordWebhook)sendWebhook(discordWebhook,{embeds:[{title:'👢 Bot Kicked',description:`**${username}** kicked from \`${host}:${port}\`\n\`${msg}\``,color:0xff6b35,timestamp:new Date().toISOString(),footer:{text:'SleepyAfk'}}]});
+    if(autoLeave){const r=activeBots.get(id);if(r){stopIvs(r.afkIvs);stopIvs(r.msgIvs);if(r.cycleTimeout)clearTimeout(r.cycleTimeout);if(r.statsPoller)clearInterval(r.statsPoller);if(r.watchdog)clearInterval(r.watchdog);}activeBots.delete(id);stopUptimeTicker(id);io.emit('bot:statusChange',{botId:id,status:'offline'});return;}
+    handleDisconnect('👢 Kicked',msg);
   });
-  bot.on('error', err => handleDisconnect('❌ Error', err.message));
-  bot.on('end',   reason => { const rt=activeBots.get(id); handleDisconnect(rt?.stopping?'🔴 Stopped':'🔴 Disconnected', reason); });
-  // Poll stats every 3 seconds so health/food/ping always show (not just on change)
-  const statsPoller = setInterval(() => {
-    try {
-      if (!activeBots.has(id)) { clearInterval(statsPoller); return; }
-      if (bot?.entity && bot.health !== undefined) {
-        io.emit('bot:stats', {
-          botId: id,
-          health: Math.round(bot.health ?? 0),
-          food:   Math.round(bot.food   ?? 0),
-          ping:   bot.player?.ping ?? 0
-        });
-      }
-    } catch {}
-  }, 3000);
-  runtime.statsPoller = statsPoller;
-
-  // Watchdog: every 8s verify bot is truly connected — catches server shutdowns that don't emit events
-  const watchdog = setInterval(() => {
-    try {
-      if (!activeBots.has(id)) { clearInterval(watchdog); return; }
-      const isDisconnected =
-        bot?.state === 'disconnected' ||
-        bot?.state === 'errored'      ||
-        (!bot?.entity && bot?._client?.socket?.destroyed);
-      if (isDisconnected) {
-        clearInterval(watchdog);
-        const rt2 = activeBots.get(id);
-        if (rt2) handleDisconnect('❌ Connection lost', 'server unreachable');
-      }
-    } catch {}
-  }, 8000);
-  runtime.watchdog = watchdog;
-
-  // Also emit immediately on health change event
-  bot.on('health', () => {
-    try {
-      io.emit('bot:stats', {
-        botId: id,
-        health: Math.round(bot.health ?? 0),
-        food:   Math.round(bot.food   ?? 0),
-        ping:   bot.player?.ping ?? 0
-      });
-    } catch {}
-  });
+  bot.on('error',err=>handleDisconnect('❌ Error',err.message));
+  bot.on('end',reason=>{const r=activeBots.get(id);handleDisconnect(r?.stopping?'🔴 Stopped':'🔴 Disconnected',reason);});
 }
 
-function stopBot(botId) {
-  const rt = activeBots.get(botId);
-  if (!rt) return;
-  rt.stopping = true;
+function stopBotById(botId){
+  const rt=activeBots.get(botId);if(!rt)return;
+  rt.stopping=true;
   addLog(botId,'🛑 Stopping...','warn');
-  stopIntervals(rt.afkIntervals); stopIntervals(rt.msgIntervals);
-  if (rt.cycleTimeout)  clearTimeout(rt.cycleTimeout);
-  if (rt.statsPoller)   clearInterval(rt.statsPoller);
-  if (rt.watchdog)      clearInterval(rt.watchdog);
-  try { rt.bot.quit('User stopped'); } catch {}
-  activeBots.delete(botId); stopUptimeTicker(botId); markStopped(botId);
-  io.emit('bot:statusChange',{botId,status:'offline'});
-}
-
-function restoreRunningBots() {
-  const ids = readRunning(); if (!ids.length) return;
-  const all = readBots(); let n=0;
-  ids.forEach(id => { const c=all.find(b=>b.id===id); if(c){startBot(c);n++;}else markStopped(id); });
-  if (n) console.log(`[SleepyAfk] Restored ${n} bot(s)`);
+  stopIvs(rt.afkIvs);stopIvs(rt.msgIvs);
+  if(rt.cycleTimeout)clearTimeout(rt.cycleTimeout);
+  if(rt.statsPoller)clearInterval(rt.statsPoller);
+  if(rt.watchdog)clearInterval(rt.watchdog);
+  try{rt.bot.quit('User stopped');}catch{}
+  activeBots.delete(botId);stopUptimeTicker(botId);
+  io.emit('bot:statusChange',{botId:botId,status:'offline'});
 }
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname,'public')));
+app.use(session({secret:SESSION_SECRET,resave:false,saveUninitialized:false,cookie:{secure:false,maxAge:10*60*1000}}));
+app.use(passport.initialize());
+app.use(passport.session());
 
-function auth(req,res,next) {
+function auth(req,res,next){
   const t=req.headers.authorization?.split(' ')[1];
-  if (!t) return res.status(401).json({error:'No token'});
-  try { req.user=jwt.verify(t,JWT_SECRET); next(); } catch { res.status(401).json({error:'Invalid token'}); }
+  if(!t)return res.status(401).json({error:'No token'});
+  try{req.user=jwt.verify(t,JWT_SECRET);next();}catch{res.status(401).json({error:'Invalid token'});}
 }
 
-// ─── Auth Routes ──────────────────────────────────────────────────────────────
-app.post('/api/register', async (req,res) => {
-  const {username,password}=req.body;
-  if (!username||!password) return res.status(400).json({error:'Required'});
-  if (username.length<3) return res.status(400).json({error:'Username min 3 chars'});
-  if (password.length<6) return res.status(400).json({error:'Password min 6 chars'});
-  const users=readUsers();
-  if (users.find(u=>u.username.toLowerCase()===username.toLowerCase())) return res.status(409).json({error:'Username taken'});
-  const hash=await bcrypt.hash(password,10);
-  users.push({id:Date.now().toString(),username,password:hash,createdAt:new Date().toISOString()});
-  writeUsers(users);
-  res.json({token:jwt.sign({username},JWT_SECRET,{expiresIn:'7d'}),username});
-});
-app.post('/api/login', async (req,res) => {
-  const {username,password}=req.body; const users=readUsers();
-  const user=users.find(u=>u.username.toLowerCase()===username?.toLowerCase());
-  if (!user||!(await bcrypt.compare(password,user.password))) return res.status(401).json({error:'Invalid credentials'});
-  res.json({token:jwt.sign({username:user.username},JWT_SECRET,{expiresIn:'7d'}),username:user.username});
+// ─── Google OAuth ─────────────────────────────────────────────────────────────
+app.get('/auth/google',passport.authenticate('google',{scope:['profile','email']}));
+app.get('/auth/google/callback',passport.authenticate('google',{failureRedirect:'/'}),(req,res)=>{
+  const token=jwt.sign({id:req.user._id.toString(),username:req.user.username,role:req.user.role},JWT_SECRET,{expiresIn:'7d'});
+  res.redirect(`/auth/success.html?token=${token}&username=${encodeURIComponent(req.user.username)}`);
 });
 
-// ─── Stats / Uptime API ───────────────────────────────────────────────────────
-app.get('/api/stats', auth, (req,res) => {
-  const bots = readBots().filter(b=>b.owner===req.user.username);
-  const allStats = readStats();
-  const result = {};
-  bots.forEach(b => {
-    const st = allStats[b.id] || {totalUptime:0,kicks:0,reconnects:0,messagesOut:0,uptimeHistory:[]};
-    const isOnline = activeBots.has(b.id);
-    // compute current session uptime
-    let currentSession = 0;
-    if (isOnline && st.sessionStart) currentSession = Math.floor((Date.now()-st.sessionStart)/1000);
-    result[b.id] = { ...st, isOnline, currentSession };
-  });
+// ─── Auth Routes ──────────────────────────────────────────────────────────────
+app.post('/api/register',async(req,res)=>{
+  const {username,password}=req.body;
+  if(!username||!password)return res.status(400).json({error:'Required'});
+  if(username.length<3)return res.status(400).json({error:'Username min 3 chars'});
+  if(password.length<6)return res.status(400).json({error:'Password min 6 chars'});
+  if(await User.findOne({username}))return res.status(409).json({error:'Username taken'});
+  const passwordHash=await bcrypt.hash(password,10);
+  const user=await User.create({username,passwordHash,role:'admin'});
+  res.json({token:jwt.sign({id:user._id.toString(),username:user.username,role:user.role},JWT_SECRET,{expiresIn:'7d'}),username:user.username});
+});
+
+app.post('/api/login',async(req,res)=>{
+  const {username,password,twoFactorCode}=req.body;
+  const user=await User.findOne({username});
+  if(!user||!user.passwordHash)return res.status(401).json({error:'Invalid credentials'});
+  if(!await bcrypt.compare(password,user.passwordHash))return res.status(401).json({error:'Invalid credentials'});
+  if(user.twoFactorEnabled){
+    if(!twoFactorCode)return res.json({twoFactorRequired:true});
+    const valid=speakeasy.totp.verify({secret:user.twoFactorSecret,encoding:'base32',token:twoFactorCode,window:2});
+    if(!valid)return res.status(401).json({error:'Invalid 2FA code'});
+  }
+  res.json({token:jwt.sign({id:user._id.toString(),username:user.username,role:user.role},JWT_SECRET,{expiresIn:'7d'}),username:user.username,theme:user.theme||'dark'});
+});
+
+// ─── Account Routes ───────────────────────────────────────────────────────────
+app.get('/api/account',auth,async(req,res)=>{
+  const user=await User.findById(req.user.id).select('-passwordHash -twoFactorSecret');
+  if(!user)return res.status(404).json({error:'Not found'});
+  res.json(user);
+});
+app.put('/api/account/password',auth,async(req,res)=>{
+  const {currentPassword,newPassword}=req.body;
+  if(!newPassword||newPassword.length<6)return res.status(400).json({error:'New password min 6 chars'});
+  const user=await User.findById(req.user.id);
+  if(user.passwordHash&&(!currentPassword||!await bcrypt.compare(currentPassword,user.passwordHash)))return res.status(401).json({error:'Current password wrong'});
+  user.passwordHash=await bcrypt.hash(newPassword,10);await user.save();
+  res.json({success:true});
+});
+app.put('/api/account/theme',auth,async(req,res)=>{
+  const {theme}=req.body;
+  if(!['dark','dim','light'].includes(theme))return res.status(400).json({error:'Invalid theme'});
+  await User.updateOne({_id:req.user.id},{theme});res.json({success:true,theme});
+});
+app.put('/api/account/webhook',auth,async(req,res)=>{
+  const {discordWebhook}=req.body;
+  await User.updateOne({_id:req.user.id},{discordWebhook:discordWebhook||''});res.json({success:true});
+});
+app.post('/api/account/2fa/setup',auth,async(req,res)=>{
+  const user=await User.findById(req.user.id);
+  const secret=speakeasy.generateSecret({name:`SleepyAfk (${user.username})`});
+  user.twoFactorSecret=secret.base32;await user.save();
+  const qrUrl=await QRCode.toDataURL(secret.otpauth_url);
+  res.json({secret:secret.base32,qrUrl});
+});
+app.post('/api/account/2fa/enable',auth,async(req,res)=>{
+  const {code}=req.body;const user=await User.findById(req.user.id);
+  if(!user.twoFactorSecret)return res.status(400).json({error:'Setup 2FA first'});
+  const valid=speakeasy.totp.verify({secret:user.twoFactorSecret,encoding:'base32',token:code,window:2});
+  if(!valid)return res.status(400).json({error:'Invalid code'});
+  user.twoFactorEnabled=true;await user.save();res.json({success:true});
+});
+app.post('/api/account/2fa/disable',auth,async(req,res)=>{
+  const {code}=req.body;const user=await User.findById(req.user.id);
+  if(user.twoFactorEnabled){
+    const valid=speakeasy.totp.verify({secret:user.twoFactorSecret,encoding:'base32',token:code,window:2});
+    if(!valid)return res.status(400).json({error:'Invalid code'});
+  }
+  user.twoFactorEnabled=false;user.twoFactorSecret='';await user.save();res.json({success:true});
+});
+
+// ─── Stats ────────────────────────────────────────────────────────────────────
+app.get('/api/stats',auth,async(req,res)=>{
+  const bots=await Bot.find({owner:req.user.username});
+  const result={};
+  for(const b of bots){
+    const id=b._id.toString();
+    const st=await Stats.findOne({botId:id})||{totalUptime:0,kicks:0,reconnects:0,messagesOut:0,uptimeHistory:[]};
+    const isOnline=activeBots.has(id);
+    let currentSession=0;
+    if(isOnline&&st.sessionStart)currentSession=Math.floor((Date.now()-st.sessionStart)/1000);
+    result[id]={...(st.toObject?.()??st),isOnline,currentSession};
+  }
   res.json(result);
 });
 
-app.get('/api/stats/:id/uptime', auth, (req,res) => {
-  const bot = readBots().find(b=>b.id===req.params.id&&b.owner===req.user.username);
-  if (!bot) return res.status(404).json({error:'Not found'});
-  const st = getStats(req.params.id);
-  res.json(st.uptimeHistory || []);
+// ─── Bot Routes ───────────────────────────────────────────────────────────────
+function defaultTimedMsgs(){return Array.from({length:3},(_,i)=>({id:(Date.now()+i).toString(),enabled:false,message:'',hours:0,minutes:5,seconds:0}));}
+
+app.get('/api/bots',auth,async(req,res)=>{
+  const bots=await Bot.find({owner:req.user.username});
+  res.json(bots.map(b=>({...b.toObject(),id:b._id.toString(),status:activeBots.has(b._id.toString())?'online':'offline',logs:activeBots.get(b._id.toString())?.logs||[]})));
+});
+app.post('/api/bots',auth,async(req,res)=>{
+  const {name,host,port,username,version,antiAfk,timedMessages,autoRejoin,autoLeave,onJoinCommand,onJoinCommands,cycleEnabled,cycleLeaveEvery,cycleRejoinAfter,autoRespawn,discordWebhook,color,avatar,schedule}=req.body;
+  if(!name||!host||!port||!username)return res.status(400).json({error:'name/host/port/username required'});
+  const b=await Bot.create({owner:req.user.username,name,host,port:parseInt(port,10),username,version:version||'',
+    antiAfk:antiAfk||{jumpEnabled:true,jumpInterval:30,walkEnabled:true,walkInterval:45,lookEnabled:true,lookInterval:20},
+    timedMessages:timedMessages||defaultTimedMsgs(),autoRejoin:!!autoRejoin,autoLeave:!!autoLeave,
+    onJoinCommand:onJoinCommand||'',onJoinCommands:onJoinCommands||[],
+    cycleEnabled:!!cycleEnabled,cycleLeaveEvery:cycleLeaveEvery||15,cycleRejoinAfter:cycleRejoinAfter||5,
+    autoRespawn:!!autoRespawn,discordWebhook:discordWebhook||'',
+    color:color||'#00e5ff',avatar:avatar||'🤖',
+    schedule:schedule||{enabled:false,startTime:'08:00',stopTime:'23:00'}});
+  res.json({...b.toObject(),id:b._id.toString()});
+});
+app.put('/api/bots/:id',auth,async(req,res)=>{
+  const b=await Bot.findOne({_id:req.params.id,owner:req.user.username});
+  if(!b)return res.status(404).json({error:'Not found'});
+  const {name,host,port,username,version,antiAfk,timedMessages,autoRejoin,autoLeave,onJoinCommand,onJoinCommands,cycleEnabled,cycleLeaveEvery,cycleRejoinAfter,autoRespawn,discordWebhook,color,avatar,schedule}=req.body;
+  Object.assign(b,{name,host,port:parseInt(port,10),username,version:version||'',antiAfk,timedMessages,autoRejoin:!!autoRejoin,autoLeave:!!autoLeave,onJoinCommand:onJoinCommand||'',onJoinCommands:onJoinCommands||[],cycleEnabled:!!cycleEnabled,cycleLeaveEvery:cycleLeaveEvery||15,cycleRejoinAfter:cycleRejoinAfter||5,autoRespawn:!!autoRespawn,discordWebhook:discordWebhook||'',color:color||'#00e5ff',avatar:avatar||'🤖',schedule:schedule||b.schedule});
+  await b.save();
+  const id=b._id.toString();const rt=activeBots.get(id);
+  if(rt){stopIvs(rt.afkIvs);stopIvs(rt.msgIvs);if(rt.cycleTimeout)clearTimeout(rt.cycleTimeout);rt.afkIvs=startAntiAfk(id,rt.bot,antiAfk||{});rt.msgIvs=startTimedMessages(id,rt.bot,timedMessages||[]);scheduleCycle(id,b.toObject());addLog(id,'⚙️ Settings applied live','info');}
+  res.json({...b.toObject(),id});
+});
+app.delete('/api/bots/:id',auth,async(req,res)=>{
+  const b=await Bot.findOne({_id:req.params.id,owner:req.user.username});
+  if(!b)return res.status(404).json({error:'Not found'});
+  const id=b._id.toString();if(activeBots.has(id))stopBotById(id);
+  await b.deleteOne();res.json({success:true});
+});
+app.post('/api/bots/:id/start',auth,async(req,res)=>{const b=await Bot.findOne({_id:req.params.id,owner:req.user.username});if(!b)return res.status(404).json({error:'Not found'});startBot(b);res.json({success:true});});
+app.post('/api/bots/:id/stop',auth,async(req,res)=>{const b=await Bot.findOne({_id:req.params.id,owner:req.user.username});if(!b)return res.status(404).json({error:'Not found'});stopBotById(b._id.toString());res.json({success:true});});
+app.post('/api/bots/:id/chat',auth,async(req,res)=>{
+  const {message}=req.body;if(!message)return res.status(400).json({error:'Message required'});
+  const b=await Bot.findOne({_id:req.params.id,owner:req.user.username});if(!b)return res.status(404).json({error:'Not found'});
+  const id=b._id.toString();const rt=activeBots.get(id);if(!rt)return res.status(400).json({error:'Not running'});
+  try{rt.bot.chat(message);addLog(id,`📤 [You] ${message}`,'sent');Stats.updateOne({botId:id},{$inc:{messagesOut:1}},{upsert:true}).catch(()=>{});res.json({success:true});}
+  catch(e){res.status(500).json({error:e.message});}
+});
+app.post('/api/bots/:id/clone',auth,async(req,res)=>{
+  const b=await Bot.findOne({_id:req.params.id,owner:req.user.username});if(!b)return res.status(404).json({error:'Not found'});
+  const clone=b.toObject();delete clone._id;delete clone.__v;clone.name=clone.name+' (Copy)';clone.createdAt=new Date();
+  const nb=await Bot.create(clone);res.json({...nb.toObject(),id:nb._id.toString()});
+});
+app.get('/api/bots/:id/export',auth,async(req,res)=>{
+  const b=await Bot.findOne({_id:req.params.id,owner:req.user.username});if(!b)return res.status(404).json({error:'Not found'});
+  const exp=b.toObject();delete exp._id;delete exp.__v;delete exp.owner;delete exp.discordWebhook;res.json(exp);
+});
+app.post('/api/bots/import',auth,async(req,res)=>{
+  const cfg=req.body;if(!cfg.name||!cfg.host||!cfg.port||!cfg.username)return res.status(400).json({error:'Invalid config'});
+  delete cfg._id;delete cfg.__v;delete cfg.id;cfg.owner=req.user.username;cfg.createdAt=new Date();cfg.discordWebhook='';
+  const nb=await Bot.create(cfg);res.json({...nb.toObject(),id:nb._id.toString()});
+});
+app.post('/api/bots/:id/webhook-test',auth,async(req,res)=>{
+  const b=await Bot.findOne({_id:req.params.id,owner:req.user.username});
+  if(!b||!b.discordWebhook)return res.status(400).json({error:'No webhook configured'});
+  await sendWebhook(b.discordWebhook,{embeds:[{title:'🧪 Webhook Test',description:`Webhook for **${b.name}** is working!`,color:0x00e5ff,timestamp:new Date().toISOString(),footer:{text:'SleepyAfk'}}]});
+  res.json({success:true});
 });
 
-// ─── Bot Routes ───────────────────────────────────────────────────────────────
-function defaultTimedMessages() {
-  return Array.from({length:3},(_,i)=>({id:(Date.now()+i).toString(),enabled:false,message:'',hours:0,minutes:5,seconds:0}));
+// ─── Server Monitor Routes ────────────────────────────────────────────────────
+app.get('/api/servers',auth,async(req,res)=>{
+  const servers=await ServerModel.find({owner:req.user.username});
+  // Strip API key before sending to browser
+  res.json(servers.map(s=>({id:s._id.toString(),name:s.name,host:s.host,port:s.port,tags:s.tags,
+    hasPterodactyl:!!(s.panelUrl&&s.panelServerId&&s.panelApiKey),
+    alertWebhook:s.alertWebhook,playerJoinAlerts:s.playerJoinAlerts,uptimeAlertMinutes:s.uptimeAlertMinutes,
+    createdAt:s.createdAt})));
+});
+app.post('/api/servers',auth,async(req,res)=>{
+  const {name,host,port,tags,panelUrl,panelServerId,panelApiKey,alertWebhook,playerJoinAlerts,uptimeAlertMinutes}=req.body;
+  if(!name||!host)return res.status(400).json({error:'name and host required'});
+  const s=await ServerModel.create({owner:req.user.username,name,host:host.trim(),port:parseInt(port)||25565,
+    tags:tags||[],panelUrl:(panelUrl||'').trim().replace(/\/$/,''),panelServerId:(panelServerId||'').trim(),panelApiKey:(panelApiKey||'').trim(),
+    alertWebhook:alertWebhook||'',playerJoinAlerts:playerJoinAlerts||[],uptimeAlertMinutes:parseInt(uptimeAlertMinutes)||0});
+  res.json({id:s._id.toString(),name:s.name,host:s.host,port:s.port,tags:s.tags,hasPterodactyl:!!(s.panelUrl&&s.panelServerId&&s.panelApiKey)});
+});
+app.put('/api/servers/:id',auth,async(req,res)=>{
+  const s=await ServerModel.findOne({_id:req.params.id,owner:req.user.username});
+  if(!s)return res.status(404).json({error:'Not found'});
+  const {name,host,port,tags,panelUrl,panelServerId,panelApiKey,alertWebhook,playerJoinAlerts,uptimeAlertMinutes}=req.body;
+  s.name=name||s.name;s.host=(host||s.host).trim();s.port=parseInt(port)||s.port;s.tags=tags||s.tags;
+  if(panelUrl!==undefined)s.panelUrl=panelUrl.trim().replace(/\/$/,'');
+  if(panelServerId!==undefined)s.panelServerId=panelServerId.trim();
+  if(panelApiKey&&panelApiKey.trim())s.panelApiKey=panelApiKey.trim(); // only update if provided
+  s.alertWebhook=alertWebhook||'';s.playerJoinAlerts=playerJoinAlerts||[];s.uptimeAlertMinutes=parseInt(uptimeAlertMinutes)||0;
+  await s.save();
+  res.json({id:s._id.toString(),name:s.name,host:s.host,port:s.port,tags:s.tags,hasPterodactyl:!!(s.panelUrl&&s.panelServerId&&s.panelApiKey)});
+});
+app.delete('/api/servers/:id',auth,async(req,res)=>{
+  const s=await ServerModel.findOne({_id:req.params.id,owner:req.user.username});
+  if(!s)return res.status(404).json({error:'Not found'});
+  await s.deleteOne();res.json({success:true});
+});
+
+// Ping (MC status API) with alert logic
+app.get('/api/servers/:id/ping',auth,async(req,res)=>{
+  const s=await ServerModel.findOne({_id:req.params.id,owner:req.user.username});
+  if(!s)return res.status(404).json({error:'Not found'});
+  try{
+    const r=await fetch(`https://api.mcsrvstat.us/3/${encodeURIComponent(s.host)}:${s.port}`,{headers:{'User-Agent':'SleepyAfk/5.0'}});
+    const data=await r.json();
+    if(!data.online){
+      if(!s.offlineSince){s.offlineSince=new Date();s.alertedOffline=false;await s.save();}
+      else if(s.uptimeAlertMinutes>0&&!s.alertedOffline){
+        const minOff=Math.floor((Date.now()-s.offlineSince)/60000);
+        if(minOff>=s.uptimeAlertMinutes&&s.alertWebhook){
+          await sendWebhook(s.alertWebhook,{embeds:[{title:'🔴 Server Offline Alert',description:`**${s.name}** has been offline for **${minOff} minutes**`,color:0xff4757,timestamp:new Date().toISOString(),footer:{text:'SleepyAfk'}}]});
+          s.alertedOffline=true;await s.save();
+        }
+      }
+    }else{
+      if(s.offlineSince){
+        if(s.alertWebhook&&s.alertedOffline){const d=Math.floor((Date.now()-s.offlineSince)/60000);await sendWebhook(s.alertWebhook,{embeds:[{title:'✅ Server Back Online',description:`**${s.name}** is back online after **${d}m** of downtime`,color:0x00ff88,timestamp:new Date().toISOString(),footer:{text:'SleepyAfk'}}]});}
+        s.offlineSince=null;s.alertedOffline=false;await s.save();
+      }
+      if(s.playerJoinAlerts?.length&&s.alertWebhook&&data.players?.list){
+        const cur=(data.players.list||[]).map(p=>typeof p==='string'?p:(p.name||''));
+        const watching=s.playerJoinAlerts.map(n=>n.toLowerCase());
+        cur.forEach(async name=>{if(watching.includes(name.toLowerCase()))await sendWebhook(s.alertWebhook,{embeds:[{title:'👤 Player Joined',description:`**${name}** joined **${s.name}**`,color:0xc77dff,timestamp:new Date().toISOString(),footer:{text:'SleepyAfk'}}]});});
+      }
+    }
+    res.json(data);
+  }catch(e){res.status(502).json({error:e.message,online:false});}
+});
+
+// ─── Pterodactyl Proxy Routes (API key stays server-side) ─────────────────────
+async function pterodactylReq(s, method, endpoint, body) {
+  const url = `${s.panelUrl}/api/client/servers/${s.panelServerId}${endpoint}`;
+  const opts = {
+    method,
+    headers: {
+      'Authorization': `Bearer ${s.panelApiKey}`,
+      'Accept': 'application/json',
+      'Content-Type': 'application/json'
+    }
+  };
+  if (body) opts.body = JSON.stringify(body);
+  const r = await fetch(url, opts);
+  return { ok: r.ok, status: r.status, data: r.status === 204 ? null : await r.json().catch(() => null) };
 }
 
-app.get('/api/bots', auth, (req,res) => {
-  const bots=readBots().filter(b=>b.owner===req.user.username);
-  res.json(bots.map(b=>({...b,status:activeBots.has(b.id)?'online':'offline',logs:activeBots.get(b.id)?.logs||[]})));
+// Get server resources (CPU/RAM/Disk/Uptime/State)
+app.get('/api/servers/:id/pterodactyl/resources', auth, async (req, res) => {
+  const s = await ServerModel.findOne({ _id: req.params.id, owner: req.user.username });
+  if (!s) return res.status(404).json({ error: 'Not found' });
+  if (!s.panelUrl || !s.panelServerId || !s.panelApiKey) return res.status(400).json({ error: 'No Pterodactyl configured' });
+  try {
+    const { ok, data } = await pterodactylReq(s, 'GET', '/resources');
+    if (!ok) return res.status(502).json({ error: 'Panel returned error', data });
+    res.json(data);
+  } catch (e) { res.status(502).json({ error: e.message }); }
 });
-app.post('/api/bots', auth, (req,res) => {
-  const {name,host,port,username,version,antiAfk,timedMessages,autoRejoin,autoLeave,onJoinCommand,cycleEnabled,cycleLeaveEvery,cycleRejoinAfter}=req.body;
-  if (!name||!host||!port||!username) return res.status(400).json({error:'name/host/port/username required'});
-  const bots=readBots();
-  const nb={id:Date.now().toString(),owner:req.user.username,name,host,port:parseInt(port,10),username,version:version||'',
-    antiAfk:{jumpEnabled:antiAfk?.jumpEnabled??true,jumpInterval:antiAfk?.jumpInterval??30,walkEnabled:antiAfk?.walkEnabled??true,walkInterval:antiAfk?.walkInterval??45,lookEnabled:antiAfk?.lookEnabled??true,lookInterval:antiAfk?.lookInterval??20},
-    timedMessages:timedMessages??defaultTimedMessages(),autoRejoin:autoRejoin??false,autoLeave:autoLeave??false,onJoinCommand:onJoinCommand??'',
-    cycleEnabled:cycleEnabled??false,cycleLeaveEvery:cycleLeaveEvery??15,cycleRejoinAfter:cycleRejoinAfter??5,createdAt:new Date().toISOString()};
-  bots.push(nb); writeBots(bots); res.json(nb);
+
+// Power action
+app.post('/api/servers/:id/pterodactyl/power', auth, async (req, res) => {
+  const s = await ServerModel.findOne({ _id: req.params.id, owner: req.user.username });
+  if (!s || !s.panelUrl) return res.status(404).json({ error: 'Not found or no panel' });
+  const { signal } = req.body;
+  if (!['start', 'stop', 'restart', 'kill'].includes(signal)) return res.status(400).json({ error: 'Invalid signal' });
+  try {
+    const { ok, status } = await pterodactylReq(s, 'POST', '/power', { signal });
+    res.json({ success: ok, status });
+  } catch (e) { res.status(502).json({ error: e.message }); }
 });
-app.put('/api/bots/:id', auth, (req,res) => {
-  const bots=readBots(); const idx=bots.findIndex(b=>b.id===req.params.id&&b.owner===req.user.username);
-  if (idx===-1) return res.status(404).json({error:'Not found'});
-  const {name,host,port,username,version,antiAfk,timedMessages,autoRejoin,autoLeave,onJoinCommand,onJoinCommands,cycleEnabled,cycleLeaveEvery,cycleRejoinAfter,autoRespawn,discordWebhook}=req.body;
-  bots[idx]={...bots[idx],name,host,port:parseInt(port,10),username,version:version||'',antiAfk,timedMessages,autoRejoin:autoRejoin??false,autoLeave:autoLeave??false,onJoinCommand:onJoinCommand??'',onJoinCommands:onJoinCommands??[],cycleEnabled:cycleEnabled??false,cycleLeaveEvery:cycleLeaveEvery??15,cycleRejoinAfter:cycleRejoinAfter??5,autoRespawn:autoRespawn??false,discordWebhook:discordWebhook??''};
-  writeBots(bots);
-  const rt=activeBots.get(req.params.id);
-  if (rt) { stopIntervals(rt.afkIntervals); stopIntervals(rt.msgIntervals); if(rt.cycleTimeout)clearTimeout(rt.cycleTimeout); rt.afkIntervals=startAntiAfk(req.params.id,rt.bot,antiAfk||{}); rt.msgIntervals=startTimedMessages(req.params.id,rt.bot,timedMessages||[]); scheduleCycle(req.params.id,bots[idx]); addLog(req.params.id,'⚙️ Settings applied live','info'); }
-  res.json(bots[idx]);
+
+// Send console command
+app.post('/api/servers/:id/pterodactyl/command', auth, async (req, res) => {
+  const s = await ServerModel.findOne({ _id: req.params.id, owner: req.user.username });
+  if (!s || !s.panelUrl) return res.status(404).json({ error: 'Not found or no panel' });
+  const { command } = req.body;
+  if (!command) return res.status(400).json({ error: 'command required' });
+  try {
+    const { ok, status } = await pterodactylReq(s, 'POST', '/command', { command });
+    res.json({ success: ok, status });
+  } catch (e) { res.status(502).json({ error: e.message }); }
 });
-app.delete('/api/bots/:id', auth, (req,res) => {
-  const bots=readBots(); const idx=bots.findIndex(b=>b.id===req.params.id&&b.owner===req.user.username);
-  if (idx===-1) return res.status(404).json({error:'Not found'});
-  if (activeBots.has(req.params.id)) stopBot(req.params.id);
-  bots.splice(idx,1); writeBots(bots); res.json({success:true});
+
+// Get WebSocket token (browser connects directly to BisectHosting WS)
+app.get('/api/servers/:id/pterodactyl/ws', auth, async (req, res) => {
+  const s = await ServerModel.findOne({ _id: req.params.id, owner: req.user.username });
+  if (!s || !s.panelUrl) return res.status(404).json({ error: 'Not found or no panel' });
+  try {
+    const { ok, data } = await pterodactylReq(s, 'GET', '/websocket');
+    if (!ok || !data?.data) return res.status(502).json({ error: 'Could not get WS token' });
+    res.json(data.data); // { socket, token }
+  } catch (e) { res.status(502).json({ error: e.message }); }
 });
-app.post('/api/bots/:id/start', auth, (req,res) => { const b=readBots().find(b=>b.id===req.params.id&&b.owner===req.user.username); if(!b)return res.status(404).json({error:'Not found'}); startBot(b); res.json({success:true}); });
-app.post('/api/bots/:id/stop',  auth, (req,res) => { const b=readBots().find(b=>b.id===req.params.id&&b.owner===req.user.username); if(!b)return res.status(404).json({error:'Not found'}); stopBot(req.params.id); res.json({success:true}); });
-app.post('/api/bots/:id/chat',  auth, (req,res) => {
-  const {message}=req.body; if(!message)return res.status(400).json({error:'Message required'});
-  const rt=activeBots.get(req.params.id); if(!rt)return res.status(400).json({error:'Not running'});
-  try { rt.bot.chat(message); addLog(req.params.id,`📤 [You] ${message}`,'sent'); const st=getStats(req.params.id); st.messagesOut++; saveStats(req.params.id,st); res.json({success:true}); }
-  catch(err){ res.status(500).json({error:err.message}); }
+
+// ─── Public Status Page ───────────────────────────────────────────────────────
+app.get('/api/public/:username',async(req,res)=>{
+  const user=await User.findOne({username:req.params.username}).select('username');
+  if(!user)return res.status(404).json({error:'Not found'});
+  const bots=await Bot.find({owner:req.params.username}).select('name host port username color avatar');
+  const servers=await ServerModel.find({owner:req.params.username}).select('name host port tags');
+  res.json({username:user.username,
+    bots:bots.map(b=>({id:b._id.toString(),name:b.name,host:b.host,port:b.port,username:b.username,color:b.color,avatar:b.avatar,online:activeBots.has(b._id.toString())})),
+    servers:servers.map(s=>({...s.toObject(),id:s._id.toString()}))});
 });
-app.get('/api/bots/:id/logs', auth, (req,res) => { const b=readBots().find(b=>b.id===req.params.id&&b.owner===req.user.username); if(!b)return res.status(404).json({error:'Not found'}); res.json(activeBots.get(req.params.id)?.logs||[]); });
 
 // ─── Socket ───────────────────────────────────────────────────────────────────
-io.use((socket,next) => {
+io.use((socket,next)=>{
   const t=socket.handshake.auth?.token;
   if(!t)return next(new Error('Unauthorized'));
   try{socket.user=jwt.verify(t,JWT_SECRET);next();}catch{next(new Error('Invalid token'));}
 });
-io.on('connection', socket => { console.log(`[Socket] ${socket.user.username} connected`); });
+io.on('connection',socket=>console.log(`[Socket] ${socket.user.username} connected`));
 
-server.listen(PORT, () => {
+// ─── Cron: Bot Scheduling ─────────────────────────────────────────────────────
+cron.schedule('* * * * *',async()=>{
+  try{
+    const now=new Date();
+    const t=`${String(now.getUTCHours()).padStart(2,'0')}:${String(now.getUTCMinutes()).padStart(2,'0')}`;
+    const bots=await Bot.find({'schedule.enabled':true});
+    for(const b of bots){
+      const id=b._id.toString();
+      if(b.schedule.startTime===t&&!activeBots.has(id)){addLog(id,'⏰ Scheduled start','info');startBot(b);}
+      if(b.schedule.stopTime===t&&activeBots.has(id)){addLog(id,'⏰ Scheduled stop','info');stopBotById(id);}
+    }
+  }catch{}
+});
+
+// ─── Cron: Daily Summary ──────────────────────────────────────────────────────
+cron.schedule('0 0 * * *',async()=>{
+  try{
+    const users=await User.find({discordWebhook:{$ne:''}});
+    for(const user of users){
+      const bots=await Bot.find({owner:user.username});
+      let totalKicks=0,totalReconnects=0,totalMessages=0,onlineBots=0;
+      for(const b of bots){
+        const id=b._id.toString();
+        const st=await Stats.findOne({botId:id});
+        if(st){totalKicks+=st.kicks||0;totalReconnects+=st.reconnects||0;totalMessages+=st.messagesOut||0;}
+        if(activeBots.has(id))onlineBots++;
+      }
+      await sendWebhook(user.discordWebhook,{embeds:[{title:`📊 Daily Summary — ${user.username}`,color:0x00e5ff,fields:[
+        {name:'🤖 Bots',value:`${onlineBots}/${bots.length} online`,inline:true},
+        {name:'👢 Kicks',value:String(totalKicks),inline:true},
+        {name:'🔄 Reconnects',value:String(totalReconnects),inline:true},
+        {name:'📢 Messages Sent',value:String(totalMessages),inline:true},
+      ],timestamp:new Date().toISOString(),footer:{text:'SleepyAfk Daily Digest'}}]});
+    }
+  }catch(e){console.error('Daily summary:',e.message);}
+});
+
+// ─── Start ────────────────────────────────────────────────────────────────────
+server.listen(PORT,async()=>{
+  try{await mongoose.connect(MONGODB_URI);console.log('✅ MongoDB connected');}
+  catch(e){console.error('❌ MongoDB:',e.message);}
   console.log(`\n╔══════════════════════════════════════╗`);
-  console.log(`║        SleepyAfk is running!         ║`);
+  console.log(`║     SleepyAfk v5 is running! 🚀      ║`);
   console.log(`║   http://localhost:${PORT}              ║`);
   console.log(`╚══════════════════════════════════════╝\n`);
-  restoreRunningBots();
-});
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// ─── NEW FEATURES: Discord Webhooks, Multi On-Join, Auto-Respawn, Servers ─────
-// ═══════════════════════════════════════════════════════════════════════════════
-
-// ─── Discord Webhook Helper ───────────────────────────────────────────────────
-async function sendDiscordWebhook(webhookUrl, payload) {
-  if (!webhookUrl) return;
-  try {
-    const body = JSON.stringify(payload);
-    const url = new URL(webhookUrl);
-    const mod = url.protocol === 'https:' ? require('https') : require('http');
-    await new Promise((resolve, reject) => {
-      const req = mod.request({ hostname: url.hostname, path: url.pathname + url.search, method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) } }, res => {
-        res.on('data', () => {}); res.on('end', resolve);
-      });
-      req.on('error', reject);
-      req.write(body); req.end();
-    });
-  } catch (err) { console.error('[Webhook] Failed:', err.message); }
-}
-
-// ─── Enhanced sendOnJoinCommands (multi-command with delays) ─────────────────
-function sendOnJoinCommands(botId, bot, onJoinCommands) {
-  // onJoinCommands is array of { command, delay } or legacy single string
-  let cmds = [];
-  if (typeof onJoinCommands === 'string') {
-    if (onJoinCommands.trim()) cmds = [{ command: onJoinCommands.trim(), delay: 1500 }];
-  } else if (Array.isArray(onJoinCommands)) {
-    cmds = onJoinCommands.filter(c => c.command?.trim());
-  }
-  if (!cmds.length) return;
-  cmds.forEach((c, i) => {
-    const delayMs = (c.delay || 1500) + (i * 200); // stagger if no explicit delay
-    setTimeout(() => {
-      try {
-        if (bot?.entity) {
-          bot.chat(c.command.trim());
-          addLog(botId, `⚡ On-join cmd ${i+1}: ${c.command.trim()}`, 'sent');
-          const st = getStats(botId); st.messagesOut++; saveStats(botId, st);
-        }
-      } catch {}
-    }, delayMs);
-  });
-}
-
-// ─── Auto-Respawn ─────────────────────────────────────────────────────────────
-function enableAutoRespawn(botId, bot) {
-  bot.on('death', () => {
-    addLog(botId, '💀 Bot died — respawning in 1s...', 'warn');
-    setTimeout(() => {
-      try { bot.respawn(); addLog(botId, '✅ Respawned', 'success'); } catch {}
-    }, 1000);
-  });
-}
-
-// ─── Servers (MC Status Monitor) Storage ────────────────────────────────────────
-const SERVERS_FILE = path.join(DATA_DIR, 'servers.json');
-if (!fs.existsSync(SERVERS_FILE)) fs.writeFileSync(SERVERS_FILE, '[]');
-function readServers()   { try { return JSON.parse(fs.readFileSync(SERVERS_FILE,'utf8')); } catch { return []; } }
-function writeServers(d) { fs.writeFileSync(SERVERS_FILE, JSON.stringify(d, null, 2)); }
-
-// GET all servers for this user
-app.get('/api/servers', auth, (req, res) => {
-  const servers = readServers().filter(s => s.owner === req.user.username);
-  res.json(servers.map(s => ({ id:s.id, name:s.name, host:s.host, port:s.port, tags:s.tags||[], createdAt:s.createdAt })));
-});
-
-// Add a server
-app.post('/api/servers', auth, (req, res) => {
-  const { name, host, port, tags } = req.body;
-  if (!name || !host) return res.status(400).json({ error: 'name and host required' });
-  const servers = readServers();
-  const ns = { id: Date.now().toString(), owner: req.user.username, name, host: host.trim(), port: parseInt(port)||25565, tags: tags||[], createdAt: new Date().toISOString() };
-  servers.push(ns); writeServers(servers);
-  res.json({ id:ns.id, name:ns.name, host:ns.host, port:ns.port, tags:ns.tags, createdAt:ns.createdAt });
-});
-
-// Edit a server
-app.put('/api/servers/:id', auth, (req, res) => {
-  const servers = readServers();
-  const idx = servers.findIndex(s => s.id === req.params.id && s.owner === req.user.username);
-  if (idx === -1) return res.status(404).json({ error: 'Not found' });
-  const { name, host, port, tags } = req.body;
-  servers[idx] = { ...servers[idx], name:name||servers[idx].name, host:(host||servers[idx].host).trim(), port:parseInt(port)||servers[idx].port, tags:tags||servers[idx].tags||[] };
-  writeServers(servers);
-  res.json({ id:servers[idx].id, name:servers[idx].name, host:servers[idx].host, port:servers[idx].port, tags:servers[idx].tags });
-});
-
-// Delete a server
-app.delete('/api/servers/:id', auth, (req, res) => {
-  const servers = readServers();
-  const idx = servers.findIndex(s => s.id === req.params.id && s.owner === req.user.username);
-  if (idx === -1) return res.status(404).json({ error: 'Not found' });
-  servers.splice(idx, 1); writeServers(servers);
-  res.json({ success: true });
-});
-
-// Proxy: fetch live status from mcsrvstat.us API (avoids CORS, hides calls)
-app.get('/api/servers/:id/ping', auth, async (req, res) => {
-  const s = readServers().find(s => s.id === req.params.id && s.owner === req.user.username);
-  if (!s) return res.status(404).json({ error: 'Not found' });
-  try {
-    const apiUrl = `https://api.mcsrvstat.us/3/${encodeURIComponent(s.host)}:${s.port}`;
-    const r = await fetch(apiUrl, { headers: { 'User-Agent': 'SleepyAfk/1.0' } });
-    const data = await r.json();
-    res.json(data);
-  } catch(err) { res.status(502).json({ error: err.message, online: false }); }
-});
-
-// Proxy: fetch player list separately (mcsrvstat simple endpoint)
-app.get('/api/servers/:id/players', auth, async (req, res) => {
-  const s = readServers().find(s => s.id === req.params.id && s.owner === req.user.username);
-  if (!s) return res.status(404).json({ error: 'Not found' });
-  try {
-    const apiUrl = `https://api.mcsrvstat.us/3/${encodeURIComponent(s.host)}:${s.port}`;
-    const r = await fetch(apiUrl, { headers: { 'User-Agent': 'SleepyAfk/1.0' } });
-    const data = await r.json();
-    res.json({ online: data.online||false, players: data.players||{online:0,max:0,list:[]} });
-  } catch(err) { res.status(502).json({ error: err.message }); }
-});
-
-// ─── Discord webhook routes ────────────────────────────────────────────────────
-app.post('/api/bots/:id/webhook-test', auth, async (req, res) => {
-  const bot = readBots().find(b => b.id === req.params.id && b.owner === req.user.username);
-  if (!bot || !bot.discordWebhook) return res.status(400).json({ error: 'No webhook configured' });
-  await sendDiscordWebhook(bot.discordWebhook, {
-    embeds: [{ title: '🧪 Webhook Test', description: `Webhook for **${bot.name}** is working!`, color: 0x00e5ff, timestamp: new Date().toISOString() }]
-  });
-  res.json({ success: true });
 });
